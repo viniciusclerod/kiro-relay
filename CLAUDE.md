@@ -24,7 +24,7 @@ linguagem** (`vscode.lm.registerLanguageModelChatProvider`) no Chat do VS Code, 
    (8 hex do SHA-256). Os testes usam valores fictícios.
 2. **Somente leitura e cooperativo** com o kiro-cli: nunca escrever no banco do kiro-cli. Os refresh tokens
    do Kiro são **de uso único**: renovar por fora pode invalidar o token do kiro-cli e deslogá-lo.
-   Não implementar refresh próprio sem decisão explícita do dono (ver "Decisão pendente").
+   Não implementar refresh próprio sem decisão explícita do dono (ver "Decisão adiada").
 3. Ler o SQLite por **snapshot**: copiar `data.sqlite3` (+ `-wal`, copiado antes) para um tmp `0700`, abrir a
    cópia com `node:sqlite` e apagar em seguida (`src/auth/sqliteSnapshot.ts`).
 
@@ -38,11 +38,21 @@ linguagem** (`vscode.lm.registerLanguageModelChatProvider`) no Chat do VS Code, 
 - Commits no estilo Conventional Commits. Não fazer refatorações fora do escopo da tarefa.
 - Mensagens de UI hoje estão em português; plano é migrar para inglês por padrão com `vscode.l10n`.
 
-## Estado atual (etapa 1: autenticação, concluída e testada no F5)
+## Estado atual
 
-Estrutura relevante: `src/extension.ts` (comandos `kirorelay.diagnose`, `kirorelay.reloadCredentials`, status bar) e
-`src/auth/` (`credentials`, `kiroCliDb`, `ssoCache`, `sqliteSnapshot`, `tokenProvider`, `diagnose`, `factory`,
-`paths`, `errors`, `redact`, `source`). Há `scripts/check-name.ts` (verifica nomes no Marketplace/Open VSX).
+- **Etapa 1, autenticação:** concluída e testada no F5. O diagnóstico mostra `agora:`, o tempo restante do access token, os
+  fingerprints do refresh token e do `client_id`, e o `client_secret_expires_at`.
+- **Etapa 3, catálogo e provedor:** implementada e verificada contra o backend real fora do VS Code, ainda **não testada no F5**.
+  `src/models/catalog.ts` (puro) e o registro `vscode.lm.registerLanguageModelChatProvider('kirorelay', …)` em `extension.ts`.
+  O chat (`provideLanguageModelChatResponse`) ainda lança "não implementado". `provideTokenCount` é uma estimativa (~4 caracteres/token).
+
+Estrutura relevante: `src/extension.ts` (comandos `kirorelay.diagnose`, `kirorelay.reloadCredentials`, `kirorelay.refreshModels`,
+`kirorelay.manage` (managementCommand do provedor), status bar, provedor de modelos), `src/auth/` (`credentials`, `kiroCliDb`,
+`ssoCache`, `sqliteSnapshot`, `tokenProvider`, `diagnose`, `factory`, `paths`, `errors`, `redact`, `source`) e `src/models/catalog.ts`.
+Há `scripts/check-name.ts` (verifica nomes no Marketplace/Open VSX).
+
+Dica do ambiente: o bind mount do devcontainer no macOS às vezes entrega um arquivo recém-editado pela metade; se os testes falharem
+logo após uma edição feita fora do container, rode de novo.
 
 Fatos **verificados** no ambiente do dono (relatório de diagnóstico real):
 - VS Code 1.142.0; extension host em Node **24.21.0** (linux/arm64); **`node:sqlite` disponível**; kiro-cli **2.33.0**.
@@ -53,14 +63,22 @@ Fatos **verificados** no ambiente do dono (relatório de diagnóstico real):
 - Login é **IdC / DeviceCode** com registro de cliente OIDC. `~/.aws/sso/cache` **não existe** no container.
 - O parser tolera snake_case/camelCase; timestamps têm nanossegundos (truncar a fração para 3 dígitos).
 
-**Pode estar pendente** (confira com `git status`/`git log`): um patch que melhora o diagnóstico: linha `agora:`, tempo restante do
-access token, **fingerprint do refresh token** (detecta rotação), `client_secret_expires_at` do registro OIDC, e um teste com o
-layout real acima (valores fictícios). Se não estiver aplicado, reimplemente.
+Catálogo verificado com chamada real (2026-10-21):
+- `GET https://management.us-east-1.kiro.dev/ListAvailableModels?origin=AI_EDITOR&profileArn=…` com `Authorization: Bearer`,
+  `Accept: application/json` e **User-Agent honesto (`kiro-relay/…`)**: 200. **Não** precisa de `TokenType` nem de imitar o Kiro IDE.
+  Com token vencido a resposta é **403 `{"message":"Invalid token"}`**.
+- Resposta: `{models[], defaultModel{modelId:"auto"}, nextToken}` (1 página, 20 modelos). Campos por modelo: `modelId, modelName,
+  description, modelProvider, rateMultiplier, rateUnit ("Credit"), tokenLimits{maxInputTokens,maxOutputTokens}, supportedInputTypes
+  (["TEXT","IMAGE"]), promptCaching{supportsPromptCaching,…}, additionalModelRequestFieldsSchema, refusalFallbackModels, status,
+  consentStatus, availableOrigins, disclaimers, termsUrl`. `status`/`consentStatus`/`availableOrigins` vieram todos `null`.
+- O kiro-cli usa o mesmo host para listar modelos (log `-vvv`, serviço `KiroControlPlaneBearer`).
 
-## Decisão pendente: como manter o token válido
+## Decisão adiada: como manter o token válido
 
-O token observado expira em poucos minutos (tempo de vida total ainda **desconhecido**, possivelmente ~20 min). Com a política
-"só reler", a extensão ficaria em "token expirado" sempre que o kiro-cli não for usado. Opções:
+**Adiada pelo dono em 2026-10-21** ("por hora vamos fazer um skip nessa renovação"): por enquanto vale a opção A (só reler). Retomar
+antes de publicar. Recomendação registrada: **B** com `kiro-cli whoami` sob demanda (o experimento abaixo mostra que funciona), usar o
+token até o vencimento real menos ~30 s (a margem atual de 300 s não combina com B, porque o `whoami` só renova perto do vencimento),
+single-flight, timeout e no máximo uma tentativa por minuto; comando configurável. Opções originais:
 - **A.** Cooperativo puro (pedir ao usuário que use o kiro-cli). Ruim com token curto.
 - **B.** A extensão executa um comando barato do kiro-cli que renove o token e relê o banco (preferida, mantém dependência exclusiva do CLI).
 - **C.** Refresh próprio via AWS SSO OIDC (`CreateToken`, grant `refresh_token`, com `client_id/secret` do registro) e gravar de volta. Arriscada.
@@ -85,14 +103,15 @@ Medido com o diagnóstico (só fingerprints e datas) e um monitor da data de mod
   sessão da organização é desconhecida.
 - O kiro-cli grava no banco até em `whoami` sem renovação. `client_secret_expires_at` não muda no login (registro reaproveitado).
 - `kiro-cli whoami`, `profile`, `chat --list-models` e `chat --no-interactive` existem; `whoami` é o mais barato que renova.
+- O tempo de vida **varia**: uma renovação feita por `kiro-cli chat --list-models` às 12:08:47 gerou um token que vencia às 12:39:36 (~31 min).
 
 ## Próximas etapas (ordem)
 
-1. Resolver a decisão acima (experimento, implementar A/B/C escolhida, testes).
+1. ~~Experimento do token~~ (feito). Implementação da renovação **adiada** (ver "Decisão adiada").
 2. **Spike** do cliente `@aws/codewhisperer-streaming-client` (pacote oficial da AWS, v1.0.45 na última checagem; o Kiro IDE parece usar
    esse cliente). Verificar: opção `endpoint`/`token`; se aceita os campos do Kiro (`additionalModelRequestFields`, `reasoningContent`);
    injeção de headers por `middlewareStack`; tamanho no bundle. Se não servir, usar `@smithy/eventstream-codec` + `fetch`.
-3. Catálogo de modelos (`ListAvailableModels`, REST) e `provideLanguageModelChatInformation`.
+3. ~~Catálogo de modelos (`ListAvailableModels`, REST) e `provideLanguageModelChatInformation`.~~ Feito; falta testar no F5.
 4. Chat só texto com streaming (`provideLanguageModelChatResponse`), `provideTokenCount` (estimativa).
 5. Tool calling, imagens, variantes de esforço (`modelo:nivel` como itens separados no picker).
 6. i18n (inglês padrão), ícone, LICENSE (nome), CHANGELOG, publicação (Marketplace + **Open VSX**, usado pelo Kiro IDE).
@@ -105,7 +124,7 @@ Tratar como observação, não como contrato; o backend muda sem aviso.
 - Dois hosts: chat em `runtime.{region}.kiro.dev` (operação `GenerateAssistantResponse`; headers `x-amz-target` e
   `content-type: application/x-amz-json-1.0`); catálogo em `management.{region}.kiro.dev` (`ListAvailableModels`, REST, **sem** esses headers;
   enviar os do runtime ali dá 404).
-- Auth: bearer + header `TokenType` conforme o tipo de login. Headers do cliente: `x-amzn-kiro-agent-mode: vibe`, `Origin` do corpo `AI_EDITOR`,
+- Auth: bearer + header `TokenType` conforme o tipo de login (no catálogo, com login IdC, **não** foi necessário). Headers do cliente: `x-amzn-kiro-agent-mode: vibe`, `Origin` do corpo `AI_EDITOR`,
   User-Agent com versão do Kiro e fingerprint da máquina.
 - Corpo: `conversationState{chatTriggerType:"MANUAL", conversationId, currentMessage.userInputMessage{content, modelId, origin, images,
   userInputMessageContext{tools, toolResults}}, history[]}`, `profileArn`, `additionalModelRequestFields`.
@@ -135,6 +154,7 @@ Contribuição `contributes.languageModelChatProviders` (`vendor`, `displayName`
 
 - Limiar exato em que o `kiro-cli` passa a renovar (entre 0 e ~5 min antes do vencimento) e a duração da sessão do IdC.
 - Superfície real do `@aws/codewhisperer-streaming-client` (nomes de classes/comandos, tipos dos campos do Kiro).
-- Comportamento do `fetch`/SDK atrás do proxy corporativo no extension host.
+- Comportamento do `fetch`/SDK atrás do proxy corporativo no extension host (o `fetch` do Node no container funcionou para o catálogo).
+- Como o seletor de modelos do Chat apresenta `detail`/`tooltip` e se `toolCalling: true` sem chat implementado causa efeitos colaterais.
 - Se `node:sqlite` existe no VS Code **desktop local** (só confirmado no VS Code Server do devcontainer).
 - Em sessões remotas (devcontainer/WSL/SSH) a extensão roda **no lado remoto** e lê credenciais de lá; avaliar `extensionKind` no futuro.

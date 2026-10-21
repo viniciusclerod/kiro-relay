@@ -6,8 +6,8 @@
 Use the models from your **Kiro** subscription inside **VS Code Chat**, authenticated through the
 **`kiro-cli`** you already have installed. Kiro Relay has no login of its own.
 
-> **Preview.** This version implements authentication and diagnostics only. The model provider
-> (the models in the Chat model picker) is the next milestone.
+> **Preview.** This version lists your Kiro models in the Chat model picker, but **chat responses are
+> not implemented yet**: picking a Kiro model and sending a message fails with an explicit error.
 
 ## Requirements
 
@@ -31,6 +31,8 @@ Use the models from your **Kiro** subscription inside **VS Code Chat**, authenti
 |---|---|
 | `Kiro Relay: Diagnose Authentication` | Prints a report without secrets (where credentials were looked for, token validity) |
 | `Kiro Relay: Reload Credentials` | Forces a fresh read of the `kiro-cli` credentials |
+| `Kiro Relay: Refresh Models` | Fetches the model list from Kiro again (it is cached for one hour) |
+| `Kiro Relay: Manage` | Quick menu with the commands above; also opened from the model picker's "Manage" action |
 
 The status bar shows the token state (`✓ Kiro 55 min`, expired, or sign-in required).
 

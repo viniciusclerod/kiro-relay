@@ -5,3 +5,7 @@
 - Authentication via `kiro-cli`: read-only credential sources (database snapshot and SSO cache),
   cooperative token provider that never refreshes tokens.
 - Commands: Diagnose Authentication, Reload Credentials. Status bar indicator.
+- Model provider `kirorelay`: lists the models of your Kiro subscription in the Chat model picker
+  (context window, max output, image input, credit multiplier). Chat responses are not implemented yet.
+- Commands: Refresh Models, Manage. Diagnostics now show the current time, the token's remaining time,
+  the refresh token fingerprint and the OIDC client secret expiry.

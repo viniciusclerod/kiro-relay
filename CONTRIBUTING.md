@@ -2,9 +2,9 @@
 
 Provedor de modelos de linguagem para o VS Code que usa **somente** a autenticação do `kiro-cli`.
 
-**Etapa atual: 1 de N, autenticação.** Ainda não há provedor de modelos nem chat. Esta etapa
-entrega a leitura segura das credenciais do kiro-cli, um comando de diagnóstico e um indicador na
-barra de status.
+**Etapa atual: autenticação + catálogo de modelos.** A extensão lê com segurança as credenciais do
+kiro-cli, tem um comando de diagnóstico e um indicador na barra de status, e registra o provedor de
+modelos `kirorelay`, que lista os modelos do Kiro no seletor do Chat. O chat em si ainda não existe.
 
 ## Princípios de segurança (valem para as próximas etapas)
 
