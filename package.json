@@ -226,6 +226,12 @@
             },
             "markdownDescription": "%config.reasoningEffort.markdownDescription%",
             "order": 0
+          },
+          "kirorelay.chat.showUsage": {
+            "type": "boolean",
+            "default": true,
+            "order": 1,
+            "markdownDescription": "%config.chat.showUsage.description%"
           }
         }
       }

@@ -9,6 +9,7 @@
 // Role numbers: 1 = User, 2 = Assistant, 3 = System (proposed API, sent by VS Code 1.142).
 
 import type { ChatMessage, ChatPart, ChatTool } from './request.ts';
+import { stripFooters } from './turnUsage.ts';
 
 export interface VsCodeMessageLike {
   readonly role: number;
@@ -75,7 +76,9 @@ export function fromVsCodeMessages(messages: ReadonlyArray<VsCodeMessageLike>): 
         parts.push({ type: 'toolResult', id: p.callId, text });
         parts.push(...images);
       } else if (typeof p.value === 'string') {
-        parts.push({ type: 'text', text: p.value });
+        // Usage footers added by Kiro Relay are not part of the conversation.
+        const text = role === 'assistant' ? stripFooters(p.value) : p.value;
+        if (text) parts.push({ type: 'text', text });
       } else if (isDataPart(p)) {
         if (p.mimeType.startsWith('image/')) parts.push({ type: 'image', mimeType: p.mimeType, data: p.data });
         else if (isTextMime(p.mimeType)) parts.push({ type: 'text', text: utf8.decode(p.data) });

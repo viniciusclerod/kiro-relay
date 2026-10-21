@@ -28,5 +28,6 @@
   "config.section.login": "Login",
   "config.section.auth": "Autenticação",
   "config.section.cli": "kiro-cli",
-  "config.section.chat": "Chat"
+  "config.section.chat": "Chat",
+  "config.chat.showUsage.description": "Mostrar os créditos e o contexto usados ao fim de cada resposta no Chat. A linha é removida do histórico reenviado ao modelo."
 }

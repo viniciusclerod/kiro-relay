@@ -8,6 +8,7 @@ import { formatHoursMinutes } from './auth/redact.ts';
 import { FirstOutputTimeoutError, streamChat } from './chat/client.ts';
 import { RequestBuildError, buildRequest } from './chat/request.ts';
 import { KiroStreamError } from './chat/response.ts';
+import { TurnUsageTracker, estimateContextTokens, interactionKey, markFooter, type TurnUsage } from './chat/turnUsage.ts';
 import { fromVsCodeMessages, fromVsCodeTools } from './chat/vscodeMessages.ts';
 import { UsageTracker, creditItem, formatPercent, type UsageSummary } from './kiro/usage.ts';
 import { KiroApiError, ModelCatalog, toChatModelInfo, type ChatModelInfo } from './models/catalog.ts';
@@ -135,6 +136,9 @@ export function activate(context: vscode.ExtensionContext): void {
       usageTimers.push(setTimeout(() => void usage.refresh({ force: true }), delay));
     }
   };
+  const turnUsage = new TurnUsageTracker();
+  /** Context window of the model of the last interaction, for the token estimate in the hover. */
+  let lastTurnMaxInput = 0;
   const modelsChanged = new vscode.EventEmitter<void>();
   let lastTokenOk: boolean | undefined;
 
@@ -154,6 +158,7 @@ export function activate(context: vscode.ExtensionContext): void {
       .getConfiguration('kirorelay')
       .get<Record<string, unknown>>('reasoningEffort');
     return {
+      maxInputTokens: kiroModel?.maxInputTokens ?? 0,
       effort: resolveEffort(modelId, kiroModel?.effort, modelConfiguration, settings),
       chatMessages: fromVsCodeMessages(messages),
       tools: fromVsCodeTools(options.tools),
@@ -191,8 +196,10 @@ export function activate(context: vscode.ExtensionContext): void {
         log(`chat preparation failed: ${e instanceof Error ? (e.stack ?? e.message) : String(e)}`);
         throw new Error(describeError(e));
       }
-      const { effort, chatMessages, tools } = prepared;
+      const { effort, chatMessages, tools, maxInputTokens } = prepared;
       const conversationId = randomUUID();
+      const turnKey = interactionKey(chatMessages);
+      let calledTools = false;
       const images = chatMessages.flatMap((m) => m.parts).filter((p) => p.type === 'image');
       log(
         `chat request: model ${model.id}, effort ${effort.level ?? 'n/a'} (${effort.source}), ` +
@@ -232,15 +239,24 @@ export function activate(context: vscode.ExtensionContext): void {
               if (ThinkingPart) progress.report(new ThinkingPart(event.text));
               break;
             case 'toolCall':
+              calledTools = true;
               progress.report(new vscode.LanguageModelToolCallPart(event.id, event.name, event.input));
               break;
-            case 'end':
+            case 'end': {
+              const turn = turnUsage.add(turnKey, event.credits, event.contextUsagePercentage);
+              lastTurnMaxInput = maxInputTokens;
+              // Only after the final answer of the interaction (not after a tool call step).
+              if (!calledTools && vscode.workspace.getConfiguration('kirorelay').get<boolean>('chat.showUsage', true)) {
+                progress.report(new vscode.LanguageModelTextPart(markFooter(usageFooter(turn, maxInputTokens))));
+              }
+              renderStatus();
               refreshUsageSoon();
               log(
                 `chat done: ${event.stopReason ?? 'no stop reason'}, ` +
                   `${event.credits?.toFixed(4) ?? '?'} credits, ${Date.now() - started} ms`,
               );
               break;
+            }
           }
         }
         if (token.isCancellationRequested) log('chat cancelled');
@@ -319,6 +335,28 @@ export function activate(context: vscode.ExtensionContext): void {
   /** "KIRO PRO" -> "Kiro Pro". */
   const planName = (plan: string) => plan.toLowerCase().replace(/(^|\s)\p{L}/gu, (c) => c.toUpperCase());
 
+  const fmtPercent1 = (n: number) => n.toLocaleString(lang, { maximumFractionDigits: 1 });
+  const fmtCompact = (n: number) => n.toLocaleString(lang, { notation: 'compact', maximumFractionDigits: 1 });
+
+  /** "0.66 credits · context 1.6% (≈16K tokens) · 3 requests" */
+  function turnUsageText(turn: TurnUsage, maxInputTokens: number): string {
+    const parts = [vscode.l10n.t('{0} credits', fmtNumber(turn.credits))];
+    if (turn.contextPercent !== undefined) {
+      const tokens = estimateContextTokens(turn.contextPercent, maxInputTokens);
+      parts.push(
+        tokens === undefined
+          ? vscode.l10n.t('context {0}%', fmtPercent1(turn.contextPercent))
+          : vscode.l10n.t('context {0}% (≈{1} tokens)', fmtPercent1(turn.contextPercent), fmtCompact(tokens)),
+      );
+    }
+    if (turn.requests > 1) parts.push(vscode.l10n.t('{0} requests', turn.requests));
+    return parts.join(' · ');
+  }
+
+  /** Footer appended to the final answer of an interaction (italic, removed from the history). */
+  function usageFooter(turn: TurnUsage, maxInputTokens: number): string {
+    return `*Kiro · ${turnUsageText(turn, maxInputTokens)}*`;
+  }
   /** One line about credits, for the menu (plain text). */
   function creditsLine(u: UsageSummary | undefined): string | undefined {
     const c = u && creditItem(u);
@@ -381,6 +419,15 @@ export function activate(context: vscode.ExtensionContext): void {
       md.appendMarkdown('---\n\n');
     } else if (usage.lastError) {
       md.appendMarkdown(`$(warning) ${vscode.l10n.t('Credit usage unavailable.')}\n\n---\n\n`);
+    }
+
+    if (turnUsage.last) {
+      md.appendMarkdown(`| **${vscode.l10n.t('Last interaction')}** | |\n|:--|--:|\n\n`);
+      md.appendMarkdown(`${escapeHtml(turnUsageText(turnUsage.last, lastTurnMaxInput))}\n\n`);
+      const sess = turnUsage.session;
+      md.appendMarkdown(
+        `<small>${vscode.l10n.t('This session: {0} interactions · {1} credits', sess.interactions, fmtNumber(sess.credits))}</small>\n\n---\n\n`,
+      );
     }
 
     const stateIcon = state.kind === 'ok' ? KIRO_ICON_ID : state.kind === 'error' ? 'error' : 'warning';
