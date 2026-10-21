@@ -9,3 +9,5 @@
   (context window, max output, image input, credit multiplier). Chat responses are not implemented yet.
 - Commands: Refresh Models, Manage. Diagnostics now show the current time, the token's remaining time,
   the refresh token fingerprint and the OIDC client secret expiry.
+- Thinking effort per model in the Chat model picker (models that support it), with the
+  `kirorelay.reasoningEffort` setting as a fallback. Takes effect once chat responses are implemented.

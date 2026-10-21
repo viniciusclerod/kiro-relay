@@ -44,7 +44,8 @@ linguagem** (`vscode.lm.registerLanguageModelChatProvider`) no Chat do VS Code, 
   fingerprints do refresh token e do `client_id`, e o `client_secret_expires_at`.
 - **Etapa 3, catálogo e provedor:** implementada e verificada no F5 (catálogo carregado no extension host).
   `src/models/catalog.ts` (puro) e o registro `vscode.lm.registerLanguageModelChatProvider('kirorelay', …)` em `extension.ts`.
-  O chat (`provideLanguageModelChatResponse`) ainda lança "não implementado". `provideTokenCount` é uma estimativa (~4 caracteres/token).
+  O chat (`provideLanguageModelChatResponse`) ainda lança "não implementado" (mas já calcula e registra o esforço escolhido).
+  `provideTokenCount` é uma estimativa (~4 caracteres/token). Verificado no F5: grupo "Kiro" no seletor com os 20 modelos.
 
 Estrutura relevante: `src/extension.ts` (comandos `kirorelay.diagnose`, `kirorelay.reloadCredentials`, `kirorelay.refreshModels`,
 `kirorelay.manage` (managementCommand do provedor), status bar, provedor de modelos), `src/auth/` (`credentials`, `kiroCliDb`,
@@ -153,6 +154,14 @@ Contribuição `contributes.languageModelChatProviders` (`vendor`, `displayName`
 `provideLanguageModelChatInformation(options{silent}, token)`, `provideLanguageModelChatResponse(model, messages, options, progress, token)`,
 `provideTokenCount(model, text, token)`. Partes de resposta estáveis: `LanguageModelTextPart`, `LanguageModelToolCallPart`,
 `LanguageModelToolResultPart` (raciocínio/thinking exige APIs propostas; fora de escopo). Com `silent: true`, nunca abrir prompts.
+
+**Esforço de raciocínio (decisão do dono, 2026-10-21): schema nativo + setting de reserva.** O VS Code 1.142 aceita
+`configurationSchema` em `LanguageModelChatInformation` **sem checar proposta** (diferente de `isDefault`/`editTools`, que exigem
+`chatProvider`) e mostra no seletor um menu por propriedade com `enum` (lê `title`, `default`, `enumItemLabels`, `enumDescriptions`).
+A escolha chega em `provideLanguageModelChatResponse` como `options.modelConfiguration`, **já preenchida com o `default`** do schema.
+Não está no `@types/vscode` (1.140 é a última): é API proposta, pode mudar. Implementação em `src/models/effort.ts`: lê
+`output_config.effort` (Claude) ou `reasoning.effort` (GPT) do catálogo; precedência seletor (se diferente do padrão) > setting
+`kirorelay.reasoningEffort` > padrão do backend. `thinking.type`/`display` e `max_tokens` do schema ainda não são expostos.
 
 ## Itens não verificados (não presumir)
 

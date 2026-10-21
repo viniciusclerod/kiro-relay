@@ -45,6 +45,7 @@ The status bar shows the token state (`✓ Kiro 55 min`, expired, or sign-in req
 | `kirorelay.auth.databasePath` | auto | Path to `kiro-cli`'s `data.sqlite3` |
 | `kirorelay.auth.ssoCachePath` | `~/.aws/sso/cache` | Directory of the SSO cache |
 | `kirorelay.auth.refreshLeewaySeconds` | `300` | Margin before expiry at which a token is treated as expired |
+| `kirorelay.reasoningEffort` | `{}` | Thinking effort per model, e.g. `{ "claude-opus-5": "xhigh" }`. A choice in the Chat model picker takes precedence |
 
 ## Remote development (Dev Containers, WSL, SSH)
 
