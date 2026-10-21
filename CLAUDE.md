@@ -48,8 +48,11 @@ linguagem** (`vscode.lm.registerLanguageModelChatProvider`) no Chat do VS Code, 
 - **Etapa 1, autenticação:** concluída e testada no F5. O diagnóstico mostra `agora:`, o tempo restante do access token, os
   fingerprints do refresh token e do `client_id`, e o `client_secret_expires_at`.
 - **Etapa 3, catálogo e provedor:** implementada e verificada no F5 (catálogo carregado no extension host).
+- **Etapa 4/5, chat:** implementado (texto com streaming, tool calling, imagens, esforço, raciocínio quando o VS Code expõe
+  `LanguageModelThinkingPart`) e verificado contra o backend real fora do VS Code; **falta testar no F5**. Módulos puros em
+  `src/chat/`: `eventstream.ts` (decodificador próprio, sem dependências), `request.ts` (corpo + regras estruturais),
+  `response.ts` (eventos), `client.ts` (HTTP + tentativas só antes da primeira saída), `vscodeMessages.ts` (conversão por formato).
   `src/models/catalog.ts` (puro) e o registro `vscode.lm.registerLanguageModelChatProvider('kirorelay', …)` em `extension.ts`.
-  O chat (`provideLanguageModelChatResponse`) ainda lança "não implementado" (mas já calcula e registra o esforço escolhido).
   `provideTokenCount` é uma estimativa (~4 caracteres/token). Verificado no F5: grupo "Kiro" no seletor com os 20 modelos.
 
 Textos ao dono continuam em português; o código e o produto, em inglês (ver Convenções).
@@ -80,6 +83,15 @@ Catálogo verificado com chamada real (2026-10-21):
   (["TEXT","IMAGE"]), promptCaching{supportsPromptCaching,…}, additionalModelRequestFieldsSchema, refusalFallbackModels, status,
   consentStatus, availableOrigins, disclaimers, termsUrl`. `status`/`consentStatus`/`availableOrigins` vieram todos `null`.
 - O kiro-cli usa o mesmo host para listar modelos (log `-vvv`, serviço `KiroControlPlaneBearer`).
+
+Chat verificado com chamadas reais (2026-10-21, ~0,03 crédito no total):
+- `POST https://runtime.us-east-1.kiro.dev/generateAssistantResponse` com `Content-Type: application/x-amz-json-1.0`,
+  `x-amz-target: AmazonCodeWhispererStreamingService.GenerateAssistantResponse`, `x-amzn-kiro-agent-mode: vibe`, bearer e
+  **User-Agent honesto**; sem `TokenType`. Resposta 200 `application/vnd.amazon.eventstream`.
+- Eventos vistos: `assistantResponseEvent {content, modelId}`, `toolUseEvent {toolUseId, name, input (fragmento), stop}` (argumentos
+  picados em vários eventos), `metadataEvent {stopReason: "END_TURN"}`, `contextUsageEvent`, `meteringEvent {usage, unit: "credit"}`.
+- `additionalModelRequestFields: {reasoning: {effort: "low"}}` aceito (GPT 5.6 Luna). Histórico com `toolUses` e `toolResults`
+  pareados, e system prompt dobrado no primeiro turno, aceitos (Qwen3 Coder Next).
 
 ## Decisão adiada: como manter o token válido
 
@@ -120,12 +132,13 @@ Medido com o diagnóstico (só fingerprints e datas) e um monitor da data de mod
 ## Próximas etapas (ordem)
 
 1. ~~Experimento do token~~ (feito). Implementação da renovação **adiada** (ver "Decisão adiada").
-2. **Spike** do cliente `@aws/codewhisperer-streaming-client` (pacote oficial da AWS, v1.0.45 na última checagem; o Kiro IDE parece usar
+2. ~~**Spike**~~ (feito: decodificador próprio, ver "Itens não verificados") do cliente `@aws/codewhisperer-streaming-client` (pacote oficial da AWS, v1.0.45 na última checagem; o Kiro IDE parece usar
    esse cliente). Verificar: opção `endpoint`/`token`; se aceita os campos do Kiro (`additionalModelRequestFields`, `reasoningContent`);
    injeção de headers por `middlewareStack`; tamanho no bundle. Se não servir, usar `@smithy/eventstream-codec` + `fetch`.
 3. ~~Catálogo de modelos (`ListAvailableModels`, REST) e `provideLanguageModelChatInformation`.~~ Feito e verificado no F5.
-4. Chat só texto com streaming (`provideLanguageModelChatResponse`), `provideTokenCount` (estimativa).
-5. Tool calling, imagens, variantes de esforço (`modelo:nivel` como itens separados no picker).
+4. ~~Chat só texto com streaming~~ e 5. ~~tool calling, imagens, esforço~~: implementados; falta o teste no F5. Pendências: teto local
+   de saída (o backend não tem `max_tokens`), retry sem raciocínio em `THINKING_SIGNATURE_INVALID`, `thinking.type`/`max_tokens` do
+   schema, contagem de tokens real.
 6. ~~i18n (inglês padrão + pt-BR)~~ feito. Ícone, LICENSE (nome), CHANGELOG, publicação (Marketplace + **Open VSX**, usado pelo Kiro IDE).
 
 ## Referência do protocolo do Kiro (engenharia reversa, **não oficial**)
@@ -173,7 +186,8 @@ Não está no `@types/vscode` (1.140 é a última): é API proposta, pode mudar.
 ## Itens não verificados (não presumir)
 
 - Limiar exato em que o `kiro-cli` passa a renovar (entre 0 e ~5 min antes do vencimento).
-- Superfície real do `@aws/codewhisperer-streaming-client` (nomes de classes/comandos, tipos dos campos do Kiro).
+- Decisão do spike (2026-10-21): **não** usar `@aws/codewhisperer-streaming-client` (puxa ~15 pacotes @smithy/@aws-sdk para um
+  decodificador de ~100 linhas); decodificador próprio em `src/chat/eventstream.ts`.
 - Comportamento do SDK/streaming atrás do proxy corporativo (o `fetch` do extension host funcionou para o catálogo).
 - Como o seletor de modelos do Chat apresenta `detail`/`tooltip` e se `toolCalling: true` sem chat implementado causa efeitos colaterais.
 - Se `node:sqlite` existe no VS Code **desktop local** (só confirmado no VS Code Server do devcontainer).

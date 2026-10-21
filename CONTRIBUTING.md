@@ -2,10 +2,10 @@
 
 A language model provider for VS Code that uses **only** the `kiro-cli` authentication.
 
-**Current stage: authentication + model catalog.** The extension reads the kiro-cli credentials
-safely, has a diagnostics command and a status bar indicator, and registers the `kirorelay` model
-provider, which lists the Kiro models (with thinking effort where supported) in the Chat model
-picker. Chat itself does not exist yet.
+**Current stage: chat.** The extension reads the kiro-cli credentials safely, has a diagnostics
+command and a status bar indicator, and registers the `kirorelay` model provider: the Kiro models
+(with thinking effort where supported) appear in the Chat model picker and answer with streaming
+text, tool calls and images.
 
 ## Security principles
 
@@ -98,6 +98,9 @@ Portuguese language pack if asked) and restart.
 | 7 | Settings: `kirorelay.auth.sources = ["sso-cache"]` | only the JSON source is used |
 | 8 | Settings: `kirorelay.auth.databasePath` pointing elsewhere | diagnostics show the new candidate |
 | 9 | Chat model picker → a Claude or GPT model → Details | a **Thinking Effort** menu with the model's levels |
+| 10 | Ask mode, a Kiro model, "hi" | streamed answer; the output panel logs `chat done: END_TURN, … credits` |
+| 11 | Agent mode, a Kiro model, "read package.json and tell me the version" | the model calls a tool, VS Code runs it, the model answers |
+| 12 | Attach an image to a model with image input | the answer describes the image |
 
 ### If something fails
 
@@ -119,6 +122,13 @@ src/
     tokenProvider.ts    # cooperative provider (cache, re-read, single-flight)
     diagnose.ts         # report without secrets
     factory.ts, paths.ts, errors.ts, redact.ts, source.ts
+  chat/
+    eventstream.ts      # AWS event stream decoder (no dependencies)
+    request.ts          # GenerateAssistantResponse body + the backend's structural rules
+    response.ts         # stream events -> text / reasoning / tool calls / usage
+    client.ts           # HTTP call, retries only before the first output
+    vscodeMessages.ts   # VS Code messages -> neutral messages (by shape, testable without VS Code)
+  kiro/api.ts           # shared HTTP error and host helpers
   models/
     catalog.ts          # ListAvailableModels client, cache, conversion to the VS Code format
     effort.ts           # thinking effort per model
@@ -129,6 +139,5 @@ test/                   # node:test, runs without VS Code
 
 ## Next steps
 
-1. Chat with text only (streaming), sending the chosen thinking effort.
-2. Tool calling and images.
-3. Token renewal through kiro-cli (deferred), icon, publishing (Marketplace + Open VSX).
+1. Local output cap, retry without reasoning on `THINKING_SIGNATURE_INVALID`, better token counting.
+2. Token renewal through kiro-cli (deferred), icon, publishing (Marketplace + Open VSX).

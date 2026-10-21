@@ -6,8 +6,8 @@
 Use the models from your **Kiro** subscription inside **VS Code Chat**, authenticated through the
 **`kiro-cli`** you already have installed. Kiro Relay has no login of its own.
 
-> **Preview.** This version lists your Kiro models in the Chat model picker, but **chat responses are
-> not implemented yet**: picking a Kiro model and sending a message fails with an explicit error.
+> **Preview.** Chat works with the models of your Kiro subscription: streaming text, tool calling
+> (Agent mode), images and thinking effort. Expect rough edges.
 
 Available in English and Brazilian Portuguese (follows the VS Code display language).
 
