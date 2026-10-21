@@ -209,8 +209,19 @@ export function activate(context: vscode.ExtensionContext): void {
 
       // LanguageModelThinkingPart is proposed API; VS Code 1.142 exposes it without a proposal check.
       const ThinkingPart = (vscode as unknown as {
-        LanguageModelThinkingPart?: new (value: string) => vscode.LanguageModelResponsePart;
+        LanguageModelThinkingPart?: new (
+          value: string,
+          id?: string,
+          metadata?: Record<string, unknown>,
+        ) => vscode.LanguageModelResponsePart;
       }).LanguageModelThinkingPart;
+      let thinkingOpen = false;
+      /** Closes the thinking block like Copilot does; otherwise the answer can end up inside it. */
+      const closeThinking = () => {
+        if (!thinkingOpen || !ThinkingPart) return;
+        thinkingOpen = false;
+        progress.report(new ThinkingPart('', undefined, { vscode_reasoning_done: true }));
+      };
 
       const abort = new AbortController();
       const cancel = token.onCancellationRequested(() => abort.abort());
@@ -233,16 +244,23 @@ export function activate(context: vscode.ExtensionContext): void {
         })) {
           switch (event.type) {
             case 'text':
+              closeThinking();
               progress.report(new vscode.LanguageModelTextPart(event.text));
               break;
             case 'reasoning':
-              if (ThinkingPart) progress.report(new ThinkingPart(event.text));
+              // Kiro sends "..." when it hides the reasoning: nothing worth showing.
+              if (ThinkingPart && !/^[\s.…]*$/.test(event.text)) {
+                thinkingOpen = true;
+                progress.report(new ThinkingPart(event.text));
+              }
               break;
             case 'toolCall':
+              closeThinking();
               calledTools = true;
               progress.report(new vscode.LanguageModelToolCallPart(event.id, event.name, event.input));
               break;
             case 'end': {
+              closeThinking();
               const turn = turnUsage.add(turnKey, event.credits, event.contextUsagePercentage);
               lastTurnMaxInput = maxInputTokens;
               // Only after the final answer of the interaction (not after a tool call step).
@@ -355,7 +373,7 @@ export function activate(context: vscode.ExtensionContext): void {
 
   /** Footer appended to the final answer of an interaction (italic, removed from the history). */
   function usageFooter(turn: TurnUsage, maxInputTokens: number): string {
-    return `*Kiro · ${turnUsageText(turn, maxInputTokens)}*`;
+    return turnUsageText(turn, maxInputTokens);
   }
   /** One line about credits, for the menu (plain text). */
   function creditsLine(u: UsageSummary | undefined): string | undefined {

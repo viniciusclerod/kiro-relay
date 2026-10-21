@@ -16,11 +16,14 @@ export interface TurnUsage {
 
 /** Invisible separator: wraps the usage footer so it can be found and removed from the history. */
 export const FOOTER_MARK = '⁣';
-const FOOTER_RE = new RegExp(`\\n*${FOOTER_MARK}[^${FOOTER_MARK}]*${FOOTER_MARK}`, 'g');
+const FOOTER_RE = new RegExp(`\\n*\\*?${FOOTER_MARK}[^${FOOTER_MARK}]*${FOOTER_MARK}\\*?`, 'g');
 
-/** Wraps a footer line so stripFooters() can remove it later. */
+/**
+ * Wraps a footer line in italics so stripFooters() can remove it later. The marks go inside the
+ * asterisks: next to them from outside, Markdown would not close the emphasis.
+ */
 export function markFooter(line: string): string {
-  return `\n\n${FOOTER_MARK}${line.replaceAll(FOOTER_MARK, '')}${FOOTER_MARK}`;
+  return `\n\n*${FOOTER_MARK}${line.replaceAll(FOOTER_MARK, '').replaceAll('*', '')}${FOOTER_MARK}*`;
 }
 
 /** Removes usage footers from text sent back to the model. */

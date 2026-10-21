@@ -100,7 +100,11 @@ Consumo por interação (decisão do dono, 2026-10-21: no chat + painel): crédi
 `contextUsageEvent` (tokens ≈ % × `maxInputTokens`; **o Kiro não informa tokens exatos**). Rodapé em itálico ao fim da resposta final
 (sem tool call), somando os passos do modo Agent: a interação é identificada pelo hash das mensagens até a última mensagem de texto do
 usuário (`src/chat/turnUsage.ts`). O rodapé vai entre separadores invisíveis U+2063 e é removido em `fromVsCodeMessages` antes de
-reenviar. O canal "usage" do Chat do VS Code não é API estável para provedores.
+reenviar (os separadores ficam **dentro** dos `*`, senão o itálico não fecha). O canal "usage" do Chat (o que aparece junto do nome do
+modelo) é alimentado pelo **participante** (`stream.usage`, Copilot), não pelo provedor: o rodapé na resposta é o mais perto possível.
+- **Raciocínio (F5, 2026-10-21):** o modelo `auto` manda um `reasoningContentEvent` com `"..."` (raciocínio oculto). Um
+  `ThinkingPart` nunca fechado prendeu a resposta no bloco "Completed N steps". Regra: ignorar raciocínio só com pontos/espaços e
+  **fechar** o bloco com `ThinkingPart('', undefined, { vscode_reasoning_done: true })` antes de texto, tool call ou fim (como o Copilot).
 
 Chat verificado com chamadas reais (2026-10-21, ~0,03 crédito no total):
 - `POST https://runtime.us-east-1.kiro.dev/generateAssistantResponse` com `Content-Type: application/x-amz-json-1.0`,

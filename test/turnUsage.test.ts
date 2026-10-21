@@ -20,7 +20,9 @@ test('footers are marked and stripped, leaving the rest of the text intact', () 
   assert.equal(stripFooters(answer), 'Hello!');
   assert.equal(stripFooters(`a${markFooter('x')} b${markFooter('y')}`), 'a b');
   assert.equal(stripFooters('no footer'), 'no footer');
-  assert.equal(markFooter(`evil${FOOTER_MARK}inside`), `\n\n${FOOTER_MARK}evilinside${FOOTER_MARK}`);
+  assert.equal(markFooter(`evil${FOOTER_MARK}in*side`), `\n\n*${FOOTER_MARK}evilinside${FOOTER_MARK}*`);
+  // Emphasis closes: the closing asterisk follows the mark, not punctuation followed by the mark.
+  assert.match(markFooter('0.17 credits · context 5.3% (≈53K tokens)'), /\)\u2063\*$/);
 });
 
 test('footers never reach the model', () => {
