@@ -283,9 +283,9 @@ export function activate(context: vscode.ExtensionContext): void {
 
   const status = vscode.window.createStatusBarItem('kirorelay.status', vscode.StatusBarAlignment.Right, 50);
   status.name = 'Kiro Relay';
-  // No command: VS Code does not let extensions open the hover on click (Copilot uses an internal
-  // command), so clicking does nothing and the hover, which opens on mouse-over, is the panel.
-  status.command = undefined;
+  // VS Code only opens a status bar hover on click for its own items (Copilot uses an internal command
+  // compared by identity). A no-op command keeps the item looking like a button; the hover is the panel.
+  status.command = 'kirorelay.statusBarClick';
 
   /** What the status bar and the menu show, refreshed by refreshStatus(). */
   let state: {
@@ -380,7 +380,10 @@ export function activate(context: vscode.ExtensionContext): void {
     return `<small>${span('--vscode-progressBar-background', filled)}${span('--vscode-editorWidget-border', width - filled)}</small>`;
   }
 
-  /** Copilot-style hover: plan + settings, credits with a progress bar, token state, actions. */
+  /**
+   * Copilot-style hover. Markdown hovers size each table to its content, so the whole panel is one
+   * two-column table (labels left, values right-aligned): the right column lines up in every section.
+   */
   function usageTooltip(): vscode.MarkdownString {
     const md = new vscode.MarkdownString(undefined, true);
     md.supportHtml = true;
@@ -394,47 +397,73 @@ export function activate(context: vscode.ExtensionContext): void {
       ],
     };
     const u = usage.current;
+    const cell = (text: string) => escapeHtml(text);
+    const muted = (text: string) => `<span style="color:var(--vscode-descriptionForeground);">${cell(text)}</span>`;
+    const rows: Array<[string, string]> = [];
+    const section = (left: string, right = '') => rows.push([`**${cell(left)}**`, right]);
+    const row = (left: string, right: string) => rows.push([left, right]);
+
     const settingsArg = encodeURIComponent(JSON.stringify([`@ext:${context.extension.id}`]));
     const gear = `[$(settings-gear)](command:workbench.action.openSettings?${settingsArg} "${vscode.l10n.t('Open settings')}")`;
     const title = u?.plan ? `Kiro ${planName(u.plan).replace(/^Kiro\s+/i, '')}` : 'Kiro Relay';
-    md.appendMarkdown(`| **${title}** | ${gear} |\n|:--|--:|\n\n---\n\n`);
 
     const c = u && creditItem(u);
     if (c) {
-      const reset = u.resetsAt ? vscode.l10n.t('Resets {0}', fmtResetDay(u.resetsAt)) : '';
-      md.appendMarkdown(`| **${c.name}** | ${reset} |\n|:--|--:|\n\n`);
+      section(c.name, u.resetsAt ? muted(vscode.l10n.t('Resets {0}', fmtResetDay(u.resetsAt))) : '');
       const percent = formatPercent(c, lang);
       if (c.limit !== undefined && percent !== undefined) {
-        md.appendMarkdown(`### ${percent}% <small>${vscode.l10n.t('used')}</small>\n\n`);
-        md.appendMarkdown(`${progressSpans((c.used / c.limit) * 100)}\n\n`);
-        md.appendMarkdown(`<small>${fmtNumber(c.used)} / ${fmtNumber(c.limit)}</small>\n\n`);
+        row(progressSpans((c.used / c.limit) * 100, 28), `**${percent}%** ${muted(vscode.l10n.t('used'))}`);
+        row(muted(vscode.l10n.t('Used')), `${fmtNumber(c.used)} / ${fmtNumber(c.limit)}`);
       } else {
-        md.appendMarkdown(`${vscode.l10n.t('{0} used, no limit', fmtNumber(c.used))}\n\n`);
+        row(muted(vscode.l10n.t('Used')), vscode.l10n.t('{0} used, no limit', fmtNumber(c.used)));
       }
       for (const b of u.bonuses) {
         const expires = b.expiresAt ? ` · ${vscode.l10n.t('expires {0}', fmtResetDay(b.expiresAt))}` : '';
-        md.appendMarkdown(`$(gift) ${b.name}: ${fmtNumber(b.used)} / ${fmtNumber(b.total)}${expires}\n\n`);
+        row(`$(gift) ${cell(b.name)}`, `${fmtNumber(b.used)} / ${fmtNumber(b.total)}${muted(expires)}`);
       }
-      if (u.overagesEnabled) md.appendMarkdown(`$(info) ${vscode.l10n.t('Overages are enabled for this plan.')}\n\n`);
-      md.appendMarkdown('---\n\n');
+      if (u.overagesEnabled) row(`$(info) ${muted(vscode.l10n.t('Overages'))}`, vscode.l10n.t('Enabled'));
     } else if (usage.lastError) {
-      md.appendMarkdown(`$(warning) ${vscode.l10n.t('Credit usage unavailable.')}\n\n---\n\n`);
+      section(vscode.l10n.t('Credits'), `$(warning) ${muted(vscode.l10n.t('Credit usage unavailable.'))}`);
     }
 
-    if (turnUsage.last) {
-      md.appendMarkdown(`| **${vscode.l10n.t('Last interaction')}** | |\n|:--|--:|\n\n`);
-      md.appendMarkdown(`${escapeHtml(turnUsageText(turnUsage.last, lastTurnMaxInput))}\n\n`);
+    const last = turnUsage.last;
+    if (last) {
+      section(vscode.l10n.t('Last interaction'), vscode.l10n.t('{0} credits', fmtNumber(last.credits)));
+      if (last.contextPercent !== undefined) {
+        const tokens = estimateContextTokens(last.contextPercent, lastTurnMaxInput);
+        row(
+          muted(vscode.l10n.t('Context')),
+          `${fmtPercent1(last.contextPercent)}%${tokens === undefined ? '' : muted(` · ≈${fmtCompact(tokens)} tokens`)}`,
+        );
+      }
+      if (last.requests > 1) row(muted(vscode.l10n.t('Requests')), String(last.requests));
       const sess = turnUsage.session;
-      md.appendMarkdown(
-        `<small>${vscode.l10n.t('This session: {0} interactions · {1} credits', sess.interactions, fmtNumber(sess.credits))}</small>\n\n---\n\n`,
+      row(
+        muted(vscode.l10n.t('This session')),
+        `${vscode.l10n.t('{0} credits', fmtNumber(sess.credits))}${muted(` · ${sess.interactions}×`)}`,
       );
     }
 
     const stateIcon = state.kind === 'ok' ? KIRO_ICON_ID : state.kind === 'error' ? 'error' : 'warning';
-    md.appendMarkdown(`$(${stateIcon}) ${state.summary}\n\n`);
-    if (state.kind === 'ok' && state.login) md.appendMarkdown(`<small>${escapeHtml(state.login)}</small>\n\n`);
-    if (state.kind !== 'ok' && state.detail) md.appendMarkdown(`<small>${escapeHtml(state.detail)}</small>\n\n`);
-    md.appendMarkdown('---\n\n');
+    if (state.kind === 'ok') {
+      section(vscode.l10n.t('Account'), `$(${stateIcon}) ${muted(vscode.l10n.t('token {0}', state.remaining ?? ''))}`);
+      if (state.login) {
+        const [kind, url, region] = state.login.split(' · ');
+        let host: string | undefined;
+        try {
+          host = url ? new URL(url).hostname : undefined;
+        } catch {
+          host = undefined;
+        }
+        if (url) {
+          const where = host ? `[${cell(host)}](${encodeURI(url)})` : cell(url);
+          row(muted(kind ?? ''), `${where}${region ? muted(` · ${region}`) : ''}`);
+        }
+      }
+    } else {
+      section(vscode.l10n.t('Account'), `$(${stateIcon}) ${cell(state.summary)}`);
+      if (state.detail) row(muted(state.detail), '');
+    }
 
     const links = [
       `[$(refresh) ${vscode.l10n.t('Refresh')}](command:kirorelay.refreshUsage)`,
@@ -442,9 +471,11 @@ export function activate(context: vscode.ExtensionContext): void {
       `[$(list-unordered) ${vscode.l10n.t('Menu')}](command:kirorelay.manage)`,
     ];
     if (state.kind === 'signed-out' || state.kind === 'expired') {
-      links.unshift(`[$(sign-in) ${vscode.l10n.t('Sign in with kiro-cli')}](command:kirorelay.signIn)`);
+      links.unshift(`[$(sign-in) ${vscode.l10n.t('Sign in')}](command:kirorelay.signIn)`);
     }
-    md.appendMarkdown(links.join(' &nbsp;&nbsp; '));
+
+    const table = [`| **${cell(title)}** | ${gear} |`, '|:--|--:|', ...rows.map(([l, r]) => `| ${l} | ${r} |`)];
+    md.appendMarkdown(`${table.join('\n')}\n\n---\n\n${links.join(' &nbsp;&nbsp; ')}`);
     return md;
   }
 
@@ -510,6 +541,8 @@ export function activate(context: vscode.ExtensionContext): void {
       void vscode.window.showInformationMessage(`Kiro: ${creditsLine(u)}`);
     }
   });
+
+  const statusBarClick = vscode.commands.registerCommand('kirorelay.statusBarClick', () => {});
 
   const signIn = vscode.commands.registerCommand('kirorelay.signIn', async () => {
     const c = vscode.workspace.getConfiguration('kirorelay.login');
@@ -602,6 +635,7 @@ export function activate(context: vscode.ExtensionContext): void {
     refreshModelsCmd,
     manage,
     signIn,
+    statusBarClick,
     refreshUsageCmd,
     onConfig,
     { dispose: () => usageTimers.forEach((t) => clearTimeout(t)) },

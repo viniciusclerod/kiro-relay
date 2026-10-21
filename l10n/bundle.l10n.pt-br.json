@@ -29,7 +29,6 @@
   "Resets {0}": "Renova em {0}",
   "{0} used, no limit": "{0} usados, sem limite",
   "expires {0}": "expira em {0}",
-  "Overages are enabled for this plan.": "O excedente está habilitado neste plano.",
   "Credit usage unavailable.": "Uso de créditos indisponível.",
   "Refresh": "Atualizar",
   "Menu": "Menu",
@@ -42,5 +41,14 @@
   "context {0}% (≈{1} tokens)": "contexto {0}% (≈{1} tokens)",
   "{0} requests": "{0} requisições",
   "Last interaction": "Última interação",
-  "This session: {0} interactions · {1} credits": "Nesta sessão: {0} interações · {1} créditos"
+  "Used": "Usado",
+  "Overages": "Excedente",
+  "Enabled": "Habilitado",
+  "Credits": "Créditos",
+  "Context": "Contexto",
+  "Requests": "Requisições",
+  "This session": "Nesta sessão",
+  "Account": "Conta",
+  "token {0}": "token {0}",
+  "Sign in": "Entrar"
 }
