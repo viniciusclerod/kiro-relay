@@ -101,6 +101,7 @@ Portuguese language pack if asked) and restart.
 | 7 | Settings: `kirorelay.auth.sources = ["sso-cache"]` | only the JSON source is used |
 | 8 | Settings: `kirorelay.auth.databasePath` pointing elsewhere | diagnostics show the new candidate |
 | 9 | Chat model picker → a Claude or GPT model → Details | a **Thinking Effort** menu with the model's levels |
+| 9b | Hover the status bar item | plan, credits used with a progress bar and the reset date, token state, action links |
 | 10 | Ask mode, a Kiro model, "hi" | streamed answer; the output panel logs `chat done: END_TURN, … credits` |
 | 11 | Agent mode, a Kiro model, "read package.json and tell me the version" | the model calls a tool, VS Code runs it, the model answers |
 | 12 | Attach an image to a model with image input | the answer describes the image |
@@ -132,6 +133,7 @@ src/
     client.ts           # HTTP call, retries only before the first output
     vscodeMessages.ts   # VS Code messages -> neutral messages (by shape, testable without VS Code)
   kiro/api.ts           # shared HTTP error and host helpers
+  kiro/usage.ts         # GetUsageLimits client, parsing, cache
   models/
     catalog.ts          # ListAvailableModels client, cache, conversion to the VS Code format
     effort.ts           # thinking effort per model

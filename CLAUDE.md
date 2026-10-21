@@ -86,6 +86,14 @@ Catálogo verificado com chamada real (2026-10-21):
   consentStatus, availableOrigins, disclaimers, termsUrl`. `status`/`consentStatus`/`availableOrigins` vieram todos `null`.
 - O kiro-cli usa o mesmo host para listar modelos (log `-vvv`, serviço `KiroControlPlaneBearer`).
 
+Uso de créditos verificado com chamada real (2026-10-21): `GET https://management.us-east-1.kiro.dev/getUsageLimits?origin=AI_EDITOR&
+profileArn=…` (mesmos headers do catálogo) → `{subscriptionInfo{subscriptionTitle:"KIRO PRO", type, overageCapability, ...},
+nextDateReset (epoch s), overageConfiguration{overageStatus}, usageBreakdownList[{resourceType:"CREDIT", displayNamePlural,
+currentUsage(WithPrecision), usageLimit(WithPrecision), bonuses[], freeTrialInfo, overageRate, ...}], userInfo}`. **`userInfo`
+identifica o usuário: nunca logar nem guardar.** Regras copiadas do Kiro IDE (`kiro.kiro-agent`): percentual = floor(used/limit·100),
+limite ≥ 999999 = sem limite, bônus listados à parte (free trial `ACTIVE` = "Welcome bonus"; bonuses `ACTIVE`/`EXHAUSTED`).
+Implementado em `src/kiro/usage.ts`; tooltip rico da barra de status + linha no menu; atualiza a cada 5 min e ~10 s após respostas.
+
 Chat verificado com chamadas reais (2026-10-21, ~0,03 crédito no total):
 - `POST https://runtime.us-east-1.kiro.dev/generateAssistantResponse` com `Content-Type: application/x-amz-json-1.0`,
   `x-amz-target: AmazonCodeWhispererStreamingService.GenerateAssistantResponse`, `x-amzn-kiro-agent-mode: vibe`, bearer e

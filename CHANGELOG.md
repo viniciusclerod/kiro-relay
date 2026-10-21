@@ -22,3 +22,5 @@
   in light, dark and high-contrast themes).
 - Status bar: the Kiro logo with the token's remaining time; clicking it opens a menu with the
   connection state and every action. New command: Sign In with kiro-cli.
+- Credit usage in the status bar hover and menu: plan, credits used with a progress bar, reset date
+  and bonuses. New command: Refresh Credit Usage.

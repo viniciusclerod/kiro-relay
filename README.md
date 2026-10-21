@@ -36,9 +36,10 @@ Available in English and Brazilian Portuguese (follows the VS Code display langu
 | `Kiro Relay: Reload Credentials` | Forces a fresh read of the `kiro-cli` credentials |
 | `Kiro Relay: Refresh Models` | Fetches the model list from Kiro again (it is cached for one hour) |
 | `Kiro Relay: Manage` | Menu with the connection state and the commands above; opened by clicking the status bar item or the model picker's "Manage" action |
+| `Kiro Relay: Refresh Credit Usage` | Fetches your credit usage again (it refreshes every 5 minutes and after chat responses) |
 | `Kiro Relay: Sign In with kiro-cli` | Opens a terminal running `kiro-cli login` (`--use-device-flow` in remote windows) |
 
-The status bar shows the Kiro logo and how long the token is still valid (or a warning). Click it for a menu with the connection state and all actions, including signing in again with `kiro-cli`.
+The status bar shows the Kiro logo and how long the token is still valid (or a warning). Hover it to see your plan, credits used (with the reset date and any bonuses) and the token state. Click it for a menu with the connection state and all actions, including signing in again with `kiro-cli`.
 
 ## Settings
 
