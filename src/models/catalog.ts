@@ -2,14 +2,15 @@
 // Format observed on 2026-10-21 on the management.{region}.kiro.dev host; NOT an official contract.
 
 import type { AccessToken } from '../auth/tokenProvider.ts';
+import { KiroApiError, apiError, regionHost, type FetchFn } from '../kiro/api.ts';
 import { effortConfigurationSchema, parseEffortSupport, type EffortSupport } from './effort.ts';
+
+export { KiroApiError, type FetchFn };
 
 /** Page cap, the same as the Kiro IDE's according to kirogo. */
 export const MAX_PAGES = 10;
 const DEFAULT_MAX_INPUT_TOKENS = 200_000;
 const DEFAULT_MAX_OUTPUT_TOKENS = 64_000;
-
-export type FetchFn = (url: string, init: RequestInit) => Promise<Response>;
 
 export interface KiroModel {
   id: string;
@@ -30,30 +31,11 @@ export interface ModelList {
   defaultModelId?: string;
 }
 
-/** HTTP error from the Kiro backend. The message never includes headers or the token. */
-export class KiroApiError extends Error {
-  readonly status: number;
-  /** Message from the backend body (e.g. "Invalid token"). */
-  readonly detail: string;
-
-  constructor(operation: string, status: number, detail: string) {
-    super(`${operation}: HTTP ${status}: ${detail}`);
-    this.name = 'KiroApiError';
-    this.status = status;
-    this.detail = detail;
-  }
-}
-
 export interface ListOptions {
   token: AccessToken;
   userAgent: string;
   fetch?: FetchFn;
   signal?: AbortSignal;
-}
-
-function managementHost(region: string): string {
-  if (!/^[a-z]+(-[a-z]+)+-\d+$/.test(region)) throw new Error(`invalid region: ${region}`);
-  return `https://management.${region}.kiro.dev`;
 }
 
 function num(v: unknown): number | undefined {
@@ -91,23 +73,12 @@ export function parseModel(raw: unknown): KiroModel | undefined {
   };
 }
 
-async function errorMessage(res: Response): Promise<string> {
-  try {
-    const body = obj(await res.json());
-    const msg = str(body?.message);
-    if (msg) return msg;
-  } catch {
-    // body is not JSON
-  }
-  return res.statusText || 'unknown error';
-}
-
 /** GET /ListAvailableModels, following nextToken for up to MAX_PAGES pages. */
 export async function listAvailableModels(opts: ListOptions): Promise<ModelList> {
   const doFetch = opts.fetch ?? fetch;
   const { token } = opts;
   if (!token.region) throw new Error('unknown region: the kiro-cli token does not include a region');
-  const base = `${managementHost(token.region)}/ListAvailableModels`;
+  const base = `${regionHost('management', token.region)}/ListAvailableModels`;
 
   const models: KiroModel[] = [];
   const seen = new Set<string>();
@@ -129,7 +100,7 @@ export async function listAvailableModels(opts: ListOptions): Promise<ModelList>
       signal: opts.signal,
     });
     if (!res.ok) {
-      throw new KiroApiError('ListAvailableModels', res.status, await errorMessage(res));
+      throw await apiError('ListAvailableModels', res);
     }
     const body = obj(await res.json()) ?? {};
     for (const raw of Array.isArray(body.models) ? body.models : []) {
