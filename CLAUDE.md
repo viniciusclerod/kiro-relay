@@ -215,7 +215,14 @@ Não está no `@types/vscode` (1.140 é a última): é API proposta, pode mudar.
   `statusBar.entry.showTooltip`, comparado por **identidade de objeto** no workbench; um id igual vindo de extensão não funciona.
   `StatusBarItem.tooltip2` exige a proposta `statusBarItemTooltip`. O equivalente possível é o **hover** (MarkdownString com
   `supportThemeIcons` e `isTrusted.enabledCommands`): abre ao passar o mouse, fica fixo e aceita cliques. O clique abre o QuickPick.
-- Login configurável: `kirorelay.login.{license,startUrl,region,deviceFlow}` (scope `machine`) → `src/auth/login.ts` monta e valida
+- **Hover em Markdown (1.142):** só `<span style>` com `color`, `background-color` (aceita `var(--vscode-…)`), `display:inline-block`
+  e `border-radius`, **nessa ordem**; sem largura nem tamanho de fonte. Barra de progresso = spans coloridos com `&nbsp;` (largura por
+  caracteres). Tabelas com `|:--|--:|` alinham à direita. A data de renovação sai em UTC, só o dia: o extension host pode estar num
+  container em UTC.
+- **Settings em seções** (`contributes.configuration` como lista: Login, Autenticação, kiro-cli, Chat). Escopos: `login.*` e
+  `auth.renewCommand` = `application` (aparecem na aba User mesmo em janela remota; workspace não sobrescreve); `cli.path` = `machine`
+  (caminho por máquina: em janela remota aparece na aba **Remote**).
+- Login configurável: `kirorelay.login.{license,startUrl,region,deviceFlow}` (scope `application`) → `src/auth/login.ts` monta e valida
   `kiro-cli login [--license] [--identity-provider] [--region] [--use-device-flow]`; o terminal roda o kiro-cli **como processo**
   (`shellPath`/`shellArgs`, sem shell, sem injeção). O start URL do login atual vem de `start_url` do token (não é segredo; mostrado
   no hover, **não** no diagnóstico).

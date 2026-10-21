@@ -24,5 +24,9 @@
   "config.login.deviceFlow.description": "Usar o fluxo por código de dispositivo (`--use-device-flow`): o login é feito num navegador em qualquer máquina, com um código.",
   "config.login.deviceFlow.auto": "Só em janelas remotas (Dev Containers, SSH, WSL), onde não há navegador junto do kiro-cli.",
   "config.login.deviceFlow.always": "Sempre.",
-  "config.login.deviceFlow.never": "Nunca."
+  "config.login.deviceFlow.never": "Nunca.",
+  "config.section.login": "Login",
+  "config.section.auth": "Autenticação",
+  "config.section.cli": "kiro-cli",
+  "config.section.chat": "Chat"
 }

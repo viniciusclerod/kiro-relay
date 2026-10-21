@@ -79,121 +79,157 @@
         }
       }
     },
-    "configuration": {
-      "title": "Kiro Relay",
-      "properties": {
-        "kirorelay.cli.path": {
-          "type": "string",
-          "default": "kiro-cli",
-          "description": "%config.cli.path.description%",
-          "scope": "machine"
-        },
-        "kirorelay.auth.sources": {
-          "type": "array",
-          "items": {
+    "configuration": [
+      {
+        "id": "kirorelay.login",
+        "title": "%config.section.login%",
+        "order": 0,
+        "properties": {
+          "kirorelay.login.license": {
             "type": "string",
             "enum": [
+              "",
+              "pro",
+              "free"
+            ],
+            "default": "",
+            "scope": "application",
+            "markdownDescription": "%config.login.license.description%",
+            "enumDescriptions": [
+              "%config.login.license.ask%",
+              "%config.login.license.pro%",
+              "%config.login.license.free%"
+            ],
+            "order": 0
+          },
+          "kirorelay.login.startUrl": {
+            "type": "string",
+            "default": "",
+            "scope": "application",
+            "pattern": "^(https://\\S+)?$",
+            "markdownDescription": "%config.login.startUrl.description%",
+            "order": 1
+          },
+          "kirorelay.login.region": {
+            "type": "string",
+            "default": "",
+            "scope": "application",
+            "pattern": "^([a-z]{2}(-[a-z]+)+-\\d+)?$",
+            "markdownDescription": "%config.login.region.description%",
+            "order": 2
+          },
+          "kirorelay.login.deviceFlow": {
+            "type": "string",
+            "enum": [
+              "auto",
+              "always",
+              "never"
+            ],
+            "default": "auto",
+            "scope": "application",
+            "markdownDescription": "%config.login.deviceFlow.description%",
+            "enumDescriptions": [
+              "%config.login.deviceFlow.auto%",
+              "%config.login.deviceFlow.always%",
+              "%config.login.deviceFlow.never%"
+            ],
+            "order": 3
+          }
+        }
+      },
+      {
+        "id": "kirorelay.auth",
+        "title": "%config.section.auth%",
+        "order": 1,
+        "properties": {
+          "kirorelay.auth.sources": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "kiro-cli-db",
+                "sso-cache"
+              ]
+            },
+            "default": [
               "kiro-cli-db",
               "sso-cache"
-            ]
+            ],
+            "description": "%config.auth.sources.description%",
+            "order": 0
           },
-          "default": [
-            "kiro-cli-db",
-            "sso-cache"
-          ],
-          "description": "%config.auth.sources.description%"
-        },
-        "kirorelay.auth.databasePath": {
-          "type": "string",
-          "default": "",
-          "description": "%config.auth.databasePath.description%"
-        },
-        "kirorelay.auth.ssoCachePath": {
-          "type": "string",
-          "default": "",
-          "description": "%config.auth.ssoCachePath.description%"
-        },
-        "kirorelay.auth.refreshLeewaySeconds": {
-          "type": "number",
-          "default": 300,
-          "minimum": 0,
-          "description": "%config.auth.refreshLeewaySeconds.description%"
-        },
-        "kirorelay.auth.renewCommand": {
-          "type": "array",
-          "items": {
-            "type": "string"
+          "kirorelay.auth.renewCommand": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "default": [
+              "whoami"
+            ],
+            "scope": "application",
+            "description": "%config.auth.renewCommand.description%",
+            "order": 1
           },
-          "default": [
-            "whoami"
-          ],
-          "scope": "machine",
-          "description": "%config.auth.renewCommand.description%"
-        },
-        "kirorelay.reasoningEffort": {
-          "type": "object",
-          "default": {},
-          "additionalProperties": {
+          "kirorelay.auth.refreshLeewaySeconds": {
+            "type": "number",
+            "default": 300,
+            "minimum": 0,
+            "description": "%config.auth.refreshLeewaySeconds.description%",
+            "order": 2
+          },
+          "kirorelay.auth.databasePath": {
             "type": "string",
-            "enum": [
-              "none",
-              "low",
-              "medium",
-              "high",
-              "xhigh",
-              "max"
-            ]
+            "default": "",
+            "description": "%config.auth.databasePath.description%",
+            "order": 3
           },
-          "markdownDescription": "%config.reasoningEffort.markdownDescription%"
-        },
-        "kirorelay.login.license": {
-          "type": "string",
-          "enum": [
-            "",
-            "pro",
-            "free"
-          ],
-          "default": "",
-          "scope": "machine",
-          "markdownDescription": "%config.login.license.description%",
-          "enumDescriptions": [
-            "%config.login.license.ask%",
-            "%config.login.license.pro%",
-            "%config.login.license.free%"
-          ]
-        },
-        "kirorelay.login.startUrl": {
-          "type": "string",
-          "default": "",
-          "scope": "machine",
-          "pattern": "^(https://\\S+)?$",
-          "markdownDescription": "%config.login.startUrl.description%"
-        },
-        "kirorelay.login.region": {
-          "type": "string",
-          "default": "",
-          "scope": "machine",
-          "pattern": "^([a-z]{2}(-[a-z]+)+-\\d+)?$",
-          "markdownDescription": "%config.login.region.description%"
-        },
-        "kirorelay.login.deviceFlow": {
-          "type": "string",
-          "enum": [
-            "auto",
-            "always",
-            "never"
-          ],
-          "default": "auto",
-          "scope": "machine",
-          "markdownDescription": "%config.login.deviceFlow.description%",
-          "enumDescriptions": [
-            "%config.login.deviceFlow.auto%",
-            "%config.login.deviceFlow.always%",
-            "%config.login.deviceFlow.never%"
-          ]
+          "kirorelay.auth.ssoCachePath": {
+            "type": "string",
+            "default": "",
+            "description": "%config.auth.ssoCachePath.description%",
+            "order": 4
+          }
+        }
+      },
+      {
+        "id": "kirorelay.cli",
+        "title": "%config.section.cli%",
+        "order": 2,
+        "properties": {
+          "kirorelay.cli.path": {
+            "type": "string",
+            "default": "kiro-cli",
+            "description": "%config.cli.path.description%",
+            "scope": "machine",
+            "order": 0
+          }
+        }
+      },
+      {
+        "id": "kirorelay.chat",
+        "title": "%config.section.chat%",
+        "order": 3,
+        "properties": {
+          "kirorelay.reasoningEffort": {
+            "type": "object",
+            "default": {},
+            "additionalProperties": {
+              "type": "string",
+              "enum": [
+                "none",
+                "low",
+                "medium",
+                "high",
+                "xhigh",
+                "max"
+              ]
+            },
+            "markdownDescription": "%config.reasoningEffort.markdownDescription%",
+            "order": 0
+          }
         }
       }
-    },
+    ],
     "languageModelChatProviders": [
       {
         "vendor": "kirorelay",

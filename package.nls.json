@@ -24,5 +24,9 @@
   "config.login.deviceFlow.description": "Use the device code flow (`--use-device-flow`): sign in from a browser on any machine with a code.",
   "config.login.deviceFlow.auto": "Only in remote windows (Dev Containers, SSH, WSL), where there is no browser next to kiro-cli.",
   "config.login.deviceFlow.always": "Always.",
-  "config.login.deviceFlow.never": "Never."
+  "config.login.deviceFlow.never": "Never.",
+  "config.section.login": "Sign-in",
+  "config.section.auth": "Authentication",
+  "config.section.cli": "kiro-cli",
+  "config.section.chat": "Chat"
 }

@@ -9,7 +9,7 @@ import { FirstOutputTimeoutError, streamChat } from './chat/client.ts';
 import { RequestBuildError, buildRequest } from './chat/request.ts';
 import { KiroStreamError } from './chat/response.ts';
 import { fromVsCodeMessages, fromVsCodeTools } from './chat/vscodeMessages.ts';
-import { UsageTracker, creditItem, progressBar, type UsageSummary } from './kiro/usage.ts';
+import { UsageTracker, creditItem, type UsageSummary } from './kiro/usage.ts';
 import { KiroApiError, ModelCatalog, toChatModelInfo, type ChatModelInfo } from './models/catalog.ts';
 import { resolveEffort } from './models/effort.ts';
 
@@ -64,6 +64,10 @@ function describeParts(messages: readonly vscode.LanguageModelChatRequestMessage
     }
   }
   return [...counts].map(([k, n]) => `${k} x${n}`).join(', ') || 'none';
+}
+
+function escapeHtml(text: string): string {
+  return text.replace(/[&<>"'|*_`\[\]\\]/g, (ch) => `&#${ch.charCodeAt(0)};`);
 }
 
 /** Localized, user-facing description of an error. */
@@ -303,8 +307,10 @@ export function activate(context: vscode.ExtensionContext): void {
 
   const lang = vscode.env.language;
   const fmtNumber = (n: number) => n.toLocaleString(lang, { maximumFractionDigits: 2 });
-  const fmtReset = (d: Date) =>
-    d.toLocaleString(lang, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+  // The extension host may run in a container (UTC): show the reset day in UTC, like the Kiro IDE.
+  const fmtResetDay = (d: Date) => d.toLocaleDateString(lang, { month: 'short', day: 'numeric', timeZone: 'UTC' });
+  /** "KIRO PRO" -> "Kiro Pro". */
+  const planName = (plan: string) => plan.toLowerCase().replace(/(^|\s)\p{L}/gu, (c) => c.toUpperCase());
 
   /** One line about credits, for the menu (plain text). */
   function creditsLine(u: UsageSummary | undefined): string | undefined {
@@ -315,9 +321,23 @@ export function activate(context: vscode.ExtensionContext): void {
     return `${c.name}: ${amount}${pct}`;
   }
 
-  /** Copilot-style hover: plan, credits with a progress bar, reset date, bonuses, token state, actions. */
+  /**
+   * Theme-colored progress bar. Markdown hovers only allow <span style> with color, background-color,
+   * display:inline-block and border-radius (in this order), so the width comes from &nbsp; characters.
+   */
+  function progressSpans(percent: number, width = 44): string {
+    const filled = Math.max(percent > 0 ? 1 : 0, Math.round((percent / 100) * width));
+    const span = (color: string, n: number) =>
+      n > 0
+        ? `<span style="background-color:var(${color});display:inline-block;border-radius:2px;">${'&nbsp;'.repeat(n)}</span>`
+        : '';
+    return `<small>${span('--vscode-progressBar-background', filled)}${span('--vscode-editorWidget-border', width - filled)}</small>`;
+  }
+
+  /** Copilot-style hover: plan + settings, credits with a progress bar, token state, actions. */
   function usageTooltip(): vscode.MarkdownString {
     const md = new vscode.MarkdownString(undefined, true);
+    md.supportHtml = true;
     md.isTrusted = {
       enabledCommands: [
         'kirorelay.refreshUsage',
@@ -329,43 +349,46 @@ export function activate(context: vscode.ExtensionContext): void {
     };
     const u = usage.current;
     const settingsArg = encodeURIComponent(JSON.stringify([`@ext:${context.extension.id}`]));
-    md.appendMarkdown(
-      `**Kiro Relay**${u?.plan ? ` · ${u.plan}` : ''} &nbsp;&nbsp; ` +
-        `[$(settings-gear)](command:workbench.action.openSettings?${settingsArg} "${vscode.l10n.t('Open settings')}")\n\n`,
-    );
+    const gear = `[$(settings-gear)](command:workbench.action.openSettings?${settingsArg} "${vscode.l10n.t('Open settings')}")`;
+    const title = u?.plan ? `Kiro ${planName(u.plan).replace(/^Kiro\s+/i, '')}` : 'Kiro Relay';
+    md.appendMarkdown(`| **${title}** | ${gear} |\n|:--|--:|\n\n---\n\n`);
+
     const c = u && creditItem(u);
     if (c) {
-      const reset = u.resetsAt ? ` — ${vscode.l10n.t('Resets {0}', fmtReset(u.resetsAt))}` : '';
-      md.appendMarkdown(`**${c.name}**${reset}\n\n`);
+      const reset = u.resetsAt ? vscode.l10n.t('Resets {0}', fmtResetDay(u.resetsAt)) : '';
+      md.appendMarkdown(`| **${c.name}** | ${reset} |\n|:--|--:|\n\n`);
       if (c.limit !== undefined && c.percentUsed !== undefined) {
-        md.appendMarkdown(
-          `\`${progressBar(c.percentUsed)}\` **${vscode.l10n.t('{0}% used', c.percentUsed)}** · ` +
-            `${fmtNumber(c.used)} / ${fmtNumber(c.limit)}\n\n`,
-        );
+        md.appendMarkdown(`### ${c.percentUsed}% <small>${vscode.l10n.t('used')}</small>\n\n`);
+        md.appendMarkdown(`${progressSpans(c.percentUsed)}\n\n`);
+        md.appendMarkdown(`<small>${fmtNumber(c.used)} / ${fmtNumber(c.limit)}</small>\n\n`);
       } else {
         md.appendMarkdown(`${vscode.l10n.t('{0} used, no limit', fmtNumber(c.used))}\n\n`);
       }
       for (const b of u.bonuses) {
-        const expires = b.expiresAt ? ` · ${vscode.l10n.t('expires {0}', b.expiresAt.toLocaleDateString(lang))}` : '';
+        const expires = b.expiresAt ? ` · ${vscode.l10n.t('expires {0}', fmtResetDay(b.expiresAt))}` : '';
         md.appendMarkdown(`$(gift) ${b.name}: ${fmtNumber(b.used)} / ${fmtNumber(b.total)}${expires}\n\n`);
       }
       if (u.overagesEnabled) md.appendMarkdown(`$(info) ${vscode.l10n.t('Overages are enabled for this plan.')}\n\n`);
+      md.appendMarkdown('---\n\n');
     } else if (usage.lastError) {
-      md.appendMarkdown(`$(warning) ${vscode.l10n.t('Credit usage unavailable.')}\n\n`);
+      md.appendMarkdown(`$(warning) ${vscode.l10n.t('Credit usage unavailable.')}\n\n---\n\n`);
     }
+
     const stateIcon = state.kind === 'ok' ? KIRO_ICON_ID : state.kind === 'error' ? 'error' : 'warning';
     md.appendMarkdown(`$(${stateIcon}) ${state.summary}\n\n`);
-    if (state.kind === 'ok' && state.login) md.appendText(`${state.login}\n\n`);
-    if (state.kind !== 'ok' && state.detail) md.appendText(`${state.detail}\n\n`);
+    if (state.kind === 'ok' && state.login) md.appendMarkdown(`<small>${escapeHtml(state.login)}</small>\n\n`);
+    if (state.kind !== 'ok' && state.detail) md.appendMarkdown(`<small>${escapeHtml(state.detail)}</small>\n\n`);
+    md.appendMarkdown('---\n\n');
+
     const links = [
       `[$(refresh) ${vscode.l10n.t('Refresh')}](command:kirorelay.refreshUsage)`,
-      `[$(list-unordered) ${vscode.l10n.t('Menu')}](command:kirorelay.manage)`,
       `[$(pulse) ${vscode.l10n.t('Diagnose')}](command:kirorelay.diagnose)`,
+      `[$(list-unordered) ${vscode.l10n.t('Menu')}](command:kirorelay.manage)`,
     ];
     if (state.kind === 'signed-out' || state.kind === 'expired') {
       links.unshift(`[$(sign-in) ${vscode.l10n.t('Sign in with kiro-cli')}](command:kirorelay.signIn)`);
     }
-    md.appendMarkdown(links.join(' &nbsp;·&nbsp; '));
+    md.appendMarkdown(links.join(' &nbsp;&nbsp; '));
     return md;
   }
 

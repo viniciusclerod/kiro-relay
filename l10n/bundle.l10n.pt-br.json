@@ -35,5 +35,6 @@
   "Menu": "Menu",
   "Refresh credit usage": "Atualizar uso de créditos",
   "Invalid setting {0}: {1}": "Configuração inválida {0}: {1}",
-  "IAM Identity Center": "IAM Identity Center"
+  "IAM Identity Center": "IAM Identity Center",
+  "used": "usado"
 }
