@@ -211,6 +211,14 @@ Não está no `@types/vscode` (1.140 é a última): é API proposta, pode mudar.
   pacote `@kiro/kiricons`, **licença AWS-IPL**). O dono decidiu usá-lo mesmo assim, ciente da licença. README avisa que o logo não é
   MIT. O `.svg` não vai no `.vsix` (só a fonte). Fonte: `npm run build:icons` (`scripts/build-icons.mjs`, svgicons2svgfont → svg2ttf
   → ttf2woff, reproduzível); commitar `media/kirorelay-icons.woff` ao mudar o SVG. Monocromático: o tema pinta (claro/escuro/HC).
+- **Painel no clique, como o do Copilot: não é possível para extensões (1.142).** O item do Copilot usa o comando interno
+  `statusBar.entry.showTooltip`, comparado por **identidade de objeto** no workbench; um id igual vindo de extensão não funciona.
+  `StatusBarItem.tooltip2` exige a proposta `statusBarItemTooltip`. O equivalente possível é o **hover** (MarkdownString com
+  `supportThemeIcons` e `isTrusted.enabledCommands`): abre ao passar o mouse, fica fixo e aceita cliques. O clique abre o QuickPick.
+- Login configurável: `kirorelay.login.{license,startUrl,region,deviceFlow}` (scope `machine`) → `src/auth/login.ts` monta e valida
+  `kiro-cli login [--license] [--identity-provider] [--region] [--use-device-flow]`; o terminal roda o kiro-cli **como processo**
+  (`shellPath`/`shellArgs`, sem shell, sem injeção). O start URL do login atual vem de `start_url` do token (não é segredo; mostrado
+  no hover, **não** no diagnóstico).
 - `managementCommand` está **obsoleto** no 1.142 (ainda funciona); migrar quando mexer no manifesto.
 
 ## Itens não verificados (não presumir)

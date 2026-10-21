@@ -24,3 +24,5 @@
   connection state and every action. New command: Sign In with kiro-cli.
 - Credit usage in the status bar hover and menu: plan, credits used with a progress bar, reset date
   and bonuses. New command: Refresh Credit Usage.
+- Login settings (`kirorelay.login.*`: license, IAM Identity Center start URL and region, device
+  flow) used by Sign In with kiro-cli; a settings button and the current login in the status hover.

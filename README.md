@@ -51,6 +51,10 @@ The status bar shows the Kiro logo and how long the token is still valid (or a w
 | `kirorelay.auth.ssoCachePath` | `~/.aws/sso/cache` | Directory of the SSO cache |
 | `kirorelay.auth.refreshLeewaySeconds` | `300` | Margin before expiry at which the credentials are read again |
 | `kirorelay.auth.renewCommand` | `["whoami"]` | `kiro-cli` arguments run to renew an expired token; `[]` = never run `kiro-cli` |
+| `kirorelay.login.license` | `""` | Account type for **Sign In with kiro-cli**: `pro` (IAM Identity Center), `free` (Builder ID, Google, GitHub) or empty to let `kiro-cli` ask |
+| `kirorelay.login.startUrl` | `""` | IAM Identity Center start URL, e.g. `https://example.awsapps.com/start` |
+| `kirorelay.login.region` | `""` | IAM Identity Center region, e.g. `us-east-1` |
+| `kirorelay.login.deviceFlow` | `auto` | Device code flow: `auto` (remote windows only), `always` or `never` |
 | `kirorelay.reasoningEffort` | `{}` | Thinking effort per model, e.g. `{ "claude-opus-5": "xhigh" }`. A choice in the Chat model picker takes precedence |
 
 ## Remote development (Dev Containers, WSL, SSH)
