@@ -71,6 +71,7 @@ test('effortConfigurationSchema: formato lido pelo seletor do VS Code', () => {
       [EFFORT_OPTION]: {
         type: 'string',
         title: 'Thinking Effort',
+        group: 'navigation',
         enum: ['low', 'medium', 'high', 'xhigh', 'max'],
         enumItemLabels: ['Low', 'Medium', 'High', 'Extra High', 'Max'],
         default: 'high',

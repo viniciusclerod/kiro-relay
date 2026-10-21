@@ -48,7 +48,11 @@ const LABELS: Record<string, string> = {
   max: 'Max',
 };
 
-/** configurationSchema no formato que o VS Code 1.142 transforma em menu no seletor de modelos. */
+/**
+ * configurationSchema no formato que o VS Code 1.142 transforma em menu no seletor de modelos.
+ * O painel "Details" do seletor só mostra propriedades com `group` "navigation" (ou "tokens") e enum com 2+ itens;
+ * "navigation" é o grupo que o próprio VS Code usa para reasoningEffort.
+ */
 export function effortConfigurationSchema(e: EffortSupport): Record<string, unknown> {
   return {
     type: 'object',
@@ -56,6 +60,7 @@ export function effortConfigurationSchema(e: EffortSupport): Record<string, unkn
       [EFFORT_OPTION]: {
         type: 'string',
         title: 'Thinking Effort',
+        group: 'navigation',
         enum: e.levels,
         enumItemLabels: e.levels.map((l) => LABELS[l] ?? l),
         ...(e.default ? { default: e.default } : {}),

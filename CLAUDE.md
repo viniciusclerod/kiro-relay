@@ -157,7 +157,7 @@ Contribuição `contributes.languageModelChatProviders` (`vendor`, `displayName`
 
 **Esforço de raciocínio (decisão do dono, 2026-10-21): schema nativo + setting de reserva.** O VS Code 1.142 aceita
 `configurationSchema` em `LanguageModelChatInformation` **sem checar proposta** (diferente de `isDefault`/`editTools`, que exigem
-`chatProvider`) e mostra no seletor um menu por propriedade com `enum` (lê `title`, `default`, `enumItemLabels`, `enumDescriptions`).
+`chatProvider`) e mostra no seletor um menu por propriedade com `enum` (lê `title`, `default`, `enumItemLabels`, `enumDescriptions`; o painel "Details" do seletor só mostra propriedades com `group` "navigation" ou "tokens" e enum com 2+ itens; fora dele, o menu fica no clique direito do modelo em "Manage Language Models").
 A escolha chega em `provideLanguageModelChatResponse` como `options.modelConfiguration`, **já preenchida com o `default`** do schema.
 Não está no `@types/vscode` (1.140 é a última): é API proposta, pode mudar. Implementação em `src/models/effort.ts`: lê
 `output_config.effort` (Claude) ou `reasoning.effort` (GPT) do catálogo; precedência seletor (se diferente do padrão) > setting
