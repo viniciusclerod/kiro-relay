@@ -9,11 +9,12 @@ import { SessionTracker, type SessionRecord } from './auth/session.ts';
 import { FirstOutputTimeoutError, streamChat } from './chat/client.ts';
 import { RequestBuildError, buildRequest } from './chat/request.ts';
 import { KiroStreamError } from './chat/response.ts';
-import { TurnUsageTracker, estimateContextTokens, interactionKey, type TurnUsage } from './chat/turnUsage.ts';
+import { TurnUsageTracker, estimateContextTokens, interactionKey } from './chat/turnUsage.ts';
 import { fromVsCodeMessages, fromVsCodeTools } from './chat/vscodeMessages.ts';
 import { UsageTracker, creditItem, formatPercent, type UsageSummary } from './kiro/usage.ts';
 import { KiroApiError, ModelCatalog, toChatModelInfo, type ChatModelInfo } from './models/catalog.ts';
 import { resolveEffort } from './models/effort.ts';
+import { renderPanel, type PanelLink, type PanelRow, type PanelSection } from './ui/panel.ts';
 
 /**
  * Model info sent to VS Code. `statusIcon` is proposed API (not in @types/vscode); VS Code 1.142 uses
@@ -66,15 +67,6 @@ function describeParts(messages: readonly vscode.LanguageModelChatRequestMessage
     }
   }
   return [...counts].map(([k, n]) => `${k} x${n}`).join(', ') || 'none';
-}
-
-function escapeHtml(text: string): string {
-  return text.replace(/[&<>"'|*_`\[\]\\]/g, (ch) => `&#${ch.charCodeAt(0)};`);
-}
-
-/** Secondary text in hovers, in the theme's description color. */
-function muted(text: string): string {
-  return `<span style="color:var(--vscode-descriptionForeground);">${escapeHtml(text)}</span>`;
 }
 
 /** Localized, user-facing description of an error. */
@@ -366,21 +358,6 @@ export function activate(context: vscode.ExtensionContext): void {
   const fmtPercent1 = (n: number) => n.toLocaleString(lang, { maximumFractionDigits: 1 });
   const fmtCompact = (n: number) => n.toLocaleString(lang, { notation: 'compact', maximumFractionDigits: 1 });
 
-  /** "0.66 credits · context 1.6% (≈16K tokens) · 3 requests" */
-  function turnUsageText(turn: TurnUsage, maxInputTokens: number): string {
-    const parts = [vscode.l10n.t('{0} credits', fmtNumber(turn.credits))];
-    if (turn.contextPercent !== undefined) {
-      const tokens = estimateContextTokens(turn.contextPercent, maxInputTokens);
-      parts.push(
-        tokens === undefined
-          ? vscode.l10n.t('context {0}%', fmtPercent1(turn.contextPercent))
-          : vscode.l10n.t('context {0}% (≈{1} tokens)', fmtPercent1(turn.contextPercent), fmtCompact(tokens)),
-      );
-    }
-    if (turn.requests > 1) parts.push(vscode.l10n.t('{0} requests', turn.requests));
-    return parts.join(' · ');
-  }
-
   /** One line about credits, for the menu (plain text). */
   function creditsLine(u: UsageSummary | undefined): string | undefined {
     const c = u && creditItem(u);
@@ -391,23 +368,7 @@ export function activate(context: vscode.ExtensionContext): void {
     return `${c.name}: ${amount}${pct}`;
   }
 
-  /**
-   * Theme-colored progress bar. Markdown hovers only allow <span style> with color, background-color,
-   * display:inline-block and border-radius (in this order), so the width comes from &nbsp; characters.
-   */
-  function progressSpans(percent: number, width = 44): string {
-    const filled = Math.max(percent > 0 ? 1 : 0, Math.round((percent / 100) * width));
-    const span = (color: string, n: number) =>
-      n > 0
-        ? `<span style="background-color:var(${color});display:inline-block;border-radius:2px;">${'&nbsp;'.repeat(n)}</span>`
-        : '';
-    return `<small>${span('--vscode-progressBar-background', filled)}${span('--vscode-scrollbarSlider-background', width - filled)}</small>`;
-  }
-
-  /**
-   * Copilot-style hover. Markdown hovers size each table to its content, so the whole panel is one
-   * two-column table (labels left, values right-aligned): the right column lines up in every section.
-   */
+  /** Copilot-style hover panel (layout in src/ui/panel.ts). */
   function usageTooltip(): vscode.MarkdownString {
     const md = new vscode.MarkdownString(undefined, true);
     md.supportHtml = true;
@@ -421,20 +382,14 @@ export function activate(context: vscode.ExtensionContext): void {
       ],
     };
     const u = usage.current;
-    const cell = (text: string) => escapeHtml(text);
-    const rows: Array<[string, string]> = [];
-    const section = (left: string, right = '') => rows.push([`**${cell(left)}**`, right]);
-    const row = (left: string, right: string) => rows.push([left, right]);
+    const sections: PanelSection[] = [];
 
-    const settingsArg = encodeURIComponent(JSON.stringify([`@ext:${context.extension.id}`]));
-    const gear = `[$(settings-gear)](command:workbench.action.openSettings?${settingsArg} "${vscode.l10n.t('Open settings')}")`;
-    const title = u?.plan ? `Kiro ${planName(u.plan).replace(/^Kiro\s+/i, '')}` : 'Kiro Relay';
-
-    const stateIcon = state.kind === 'ok' ? KIRO_ICON_ID : state.kind === 'error' ? 'error' : 'warning';
+    // Account
     if (state.kind === 'ok') {
-      section(vscode.l10n.t('Account'), `$(${stateIcon}) ${muted(vscode.l10n.t('Signed in'))}`);
-      row(muted(vscode.l10n.t('Token')), vscode.l10n.t('{0} left', state.remaining ?? '?'));
-      row(muted(vscode.l10n.t('Kiro session')), sessionText());
+      const rows: PanelRow[] = [
+        { label: vscode.l10n.t('Token'), value: vscode.l10n.t('{0} left', state.remaining ?? '?') },
+        { label: vscode.l10n.t('Kiro session'), ...sessionValue() },
+      ];
       if (state.login) {
         const [kind, url, region] = state.login.split(' · ');
         let host: string | undefined;
@@ -444,78 +399,98 @@ export function activate(context: vscode.ExtensionContext): void {
           host = undefined;
         }
         if (url) {
-          const where = host ? `[${cell(host)}](${encodeURI(url)})` : cell(url);
-          row(muted(kind ?? ''), `${where}${region ? muted(` · ${region}`) : ''}`);
+          rows.push({
+            label: kind ?? '',
+            value: [host ?? url, region].filter(Boolean).join(' · '),
+            href: host ? url : undefined,
+          });
         }
       }
+      sections.push({ title: vscode.l10n.t('Account'), aside: vscode.l10n.t('Signed in'), asideIcon: KIRO_ICON_ID, rows });
     } else {
-      section(vscode.l10n.t('Account'), `$(${stateIcon}) ${cell(state.summary)}`);
-      if (state.detail) row(muted(state.detail), '');
+      sections.push({
+        title: vscode.l10n.t('Account'),
+        aside: state.summary,
+        asideIcon: state.kind === 'error' ? 'error' : 'warning',
+        rows: state.detail ? [{ label: state.detail, value: '' }] : [],
+      });
     }
 
+    // Credits
     const c = u && creditItem(u);
     if (c) {
-      section(c.name, u.resetsAt ? muted(vscode.l10n.t('Resets {0}', fmtResetDay(u.resetsAt))) : '');
       const percent = formatPercent(c, lang);
-      if (c.limit !== undefined && percent !== undefined) {
-        row(progressSpans((c.used / c.limit) * 100, 28), `**${percent}%** ${muted(vscode.l10n.t('used'))}`);
-        row(muted(vscode.l10n.t('Used')), `${fmtNumber(c.used)} / ${fmtNumber(c.limit)}`);
+      const rows: PanelRow[] = [];
+      if (c.limit !== undefined) {
+        rows.push({ label: vscode.l10n.t('Used'), value: `${fmtNumber(c.used)} / ${fmtNumber(c.limit)}` });
       } else {
-        row(muted(vscode.l10n.t('Used')), vscode.l10n.t('{0} used, no limit', fmtNumber(c.used)));
+        rows.push({ label: vscode.l10n.t('Used'), value: vscode.l10n.t('{0} used, no limit', fmtNumber(c.used)) });
       }
       for (const b of u.bonuses) {
         const expires = b.expiresAt ? ` · ${vscode.l10n.t('expires {0}', fmtResetDay(b.expiresAt))}` : '';
-        row(`$(gift) ${cell(b.name)}`, `${fmtNumber(b.used)} / ${fmtNumber(b.total)}${muted(expires)}`);
+        rows.push({ label: b.name, value: `${fmtNumber(b.used)} / ${fmtNumber(b.total)}${expires}`, icon: 'gift' });
       }
-      if (u.overagesEnabled) row(`$(info) ${muted(vscode.l10n.t('Overages'))}`, vscode.l10n.t('Enabled'));
+      if (u.overagesEnabled) rows.push({ label: vscode.l10n.t('Overages'), value: vscode.l10n.t('Enabled') });
+      sections.push({
+        title: c.name,
+        aside: u.resetsAt ? vscode.l10n.t('Resets {0}', fmtResetDay(u.resetsAt)) : undefined,
+        highlight: percent === undefined ? undefined : { value: `${percent}%`, caption: vscode.l10n.t('used') },
+        progress: c.limit === undefined ? undefined : (c.used / c.limit) * 100,
+        rows,
+      });
     } else if (usage.lastError) {
-      section(vscode.l10n.t('Credits'), `$(warning) ${muted(vscode.l10n.t('Credit usage unavailable.'))}`);
+      sections.push({ title: vscode.l10n.t('Credits'), aside: vscode.l10n.t('Credit usage unavailable.'), asideIcon: 'warning' });
     }
 
+    // Last interaction
     const last = turnUsage.last;
     if (last) {
-      section(vscode.l10n.t('Last interaction'), vscode.l10n.t('{0} credits', fmtNumber(last.credits)));
+      const rows: PanelRow[] = [];
       if (last.contextPercent !== undefined) {
         const tokens = estimateContextTokens(last.contextPercent, lastTurnMaxInput);
-        row(
-          muted(vscode.l10n.t('Context')),
-          `${fmtPercent1(last.contextPercent)}%${tokens === undefined ? '' : muted(` · ≈${fmtCompact(tokens)} tokens`)}`,
-        );
+        rows.push({
+          label: vscode.l10n.t('Context'),
+          value: `${fmtPercent1(last.contextPercent)}%${tokens === undefined ? '' : ` · ≈${fmtCompact(tokens)} tokens`}`,
+        });
       }
-      if (last.requests > 1) row(muted(vscode.l10n.t('Requests')), String(last.requests));
+      if (last.requests > 1) rows.push({ label: vscode.l10n.t('Requests'), value: String(last.requests) });
       const sess = turnUsage.session;
-      row(
-        muted(vscode.l10n.t('This session')),
-        `${vscode.l10n.t('{0} credits', fmtNumber(sess.credits))}${muted(
-          ` · ${sess.interactions === 1 ? vscode.l10n.t('1 interaction') : vscode.l10n.t('{0} interactions', sess.interactions)}`,
-        )}`,
-      );
+      const count = sess.interactions === 1 ? vscode.l10n.t('1 interaction') : vscode.l10n.t('{0} interactions', sess.interactions);
+      rows.push({ label: vscode.l10n.t('This session'), value: `${vscode.l10n.t('{0} credits', fmtNumber(sess.credits))} · ${count}` });
+      sections.push({ title: vscode.l10n.t('Last interaction'), aside: vscode.l10n.t('{0} credits', fmtNumber(last.credits)), rows });
     }
 
-    const links = [
-      `[$(refresh) ${vscode.l10n.t('Refresh')}](command:kirorelay.refreshUsage)`,
-      `[$(pulse) ${vscode.l10n.t('Diagnose')}](command:kirorelay.diagnose)`,
-      `[$(list-unordered) ${vscode.l10n.t('Menu')}](command:kirorelay.manage)`,
+    const links: PanelLink[] = [
+      { label: vscode.l10n.t('Refresh'), href: 'command:kirorelay.refreshUsage', icon: 'refresh' },
+      { label: vscode.l10n.t('Diagnose'), href: 'command:kirorelay.diagnose', icon: 'pulse' },
+      { label: vscode.l10n.t('Menu'), href: 'command:kirorelay.manage', icon: 'list-unordered' },
     ];
     if (state.kind === 'signed-out' || state.kind === 'expired') {
-      links.unshift(`[$(sign-in) ${vscode.l10n.t('Sign in')}](command:kirorelay.signIn)`);
+      links.unshift({ label: vscode.l10n.t('Sign in'), href: 'command:kirorelay.signIn', icon: 'sign-in' });
     }
 
-    const table = [`| **${cell(title)}** | ${gear} |`, '|:--|--:|', ...rows.map(([l, r]) => `| ${l} | ${r} |`)];
-    md.appendMarkdown(`${table.join('\n')}\n\n---\n\n${links.join(' &nbsp;&nbsp; ')}`);
+    const settingsArg = encodeURIComponent(JSON.stringify([`@ext:${context.extension.id}`]));
+    md.appendMarkdown(
+      renderPanel({
+        title: u?.plan ? `Kiro ${planName(u.plan).replace(/^Kiro\s+/i, '')}` : 'Kiro Relay',
+        settings: { href: `command:workbench.action.openSettings?${settingsArg}`, tooltip: vscode.l10n.t('Open settings') },
+        sections,
+        links,
+      }),
+    );
     return md;
   }
 
   /** Remaining time of the IAM Identity Center session, marked "≈" when estimated. */
-  function sessionText(): string {
+  function sessionValue(): { value: string; mutedValue?: boolean } {
     const est = session.estimate();
     const left = est.endsAt ? est.endsAt.getTime() - Date.now() : undefined;
     if (left === undefined || left <= 0) {
       const hours = vscode.workspace.getConfiguration('kirorelay').get<number>('auth.sessionHours', 8);
-      return muted(vscode.l10n.t('unknown (up to {0} h after sign-in)', hours));
+      return { value: vscode.l10n.t('unknown (up to {0} h after sign-in)', hours), mutedValue: true };
     }
     const text = vscode.l10n.t('{0} left', formatHoursMinutes(left));
-    return est.exact ? text : `≈ ${text}${muted(` · ${vscode.l10n.t('estimate')}`)}`;
+    return { value: est.exact ? text : `≈ ${text} (${vscode.l10n.t('estimate')})` };
   }
 
   function renderStatus(): void {

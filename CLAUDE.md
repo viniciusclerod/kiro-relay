@@ -237,6 +237,10 @@ Não está no `@types/vscode` (1.140 é a última): é API proposta, pode mudar.
   e `border-radius`, **nessa ordem**; sem largura nem tamanho de fonte. Barra de progresso = spans coloridos com `&nbsp;` (largura por
   caracteres). Tabelas com `|:--|--:|` alinham à direita. A data de renovação sai em UTC, só o dia: o extension host pode estar num
   container em UTC.
+- **Painel em HTML (`src/ui/panel.ts`):** o sanitizador do hover aceita `table/td` com `width`, `align`, `colspan`, `hr`, `h1`–`h6`,
+  `small`, `a href` e `<span class="codicon codicon-…">`. Uma tabela `width="100%"` por seção + `<hr>` dá o esqueleto do Copilot
+  (rótulo à esquerda, valor `align="right"`). Dentro de HTML o `$(icon)` não é processado: usar o span codicon. Barra fina com `━`
+  colorido (`color:` é permitido em span). `test/panel.test.ts` valida o HTML contra as regras do sanitizador 1.142.
 - **Settings em seções** (`contributes.configuration` como lista: Login, Autenticação, kiro-cli, Chat). Escopos: `login.*` e
   `auth.renewCommand` = `application` (aparecem na aba User mesmo em janela remota; workspace não sobrescreve); `cli.path` = `machine`
   (caminho por máquina: em janela remota aparece na aba **Remote**).
