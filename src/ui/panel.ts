@@ -22,8 +22,8 @@ export interface PanelSection {
   /** Right side of the title row (muted), e.g. "Resets Nov 1". */
   aside?: string;
   asideIcon?: string;
-  /** Big number under the title, e.g. "0.9%" + "used". */
-  highlight?: { value: string; caption: string };
+  /** Big number under the title, e.g. "0.9%" + "used"; `tooltip` shows on mouse-over (e.g. "9.97 / 1,000"). */
+  highlight?: { value: string; caption: string; tooltip?: string };
   /** 0..100: thin bar under the highlight. */
   progress?: number;
   rows?: PanelRow[];
@@ -35,15 +35,33 @@ export interface PanelLink {
   icon?: string;
 }
 
+/** Bar colors: an image cannot read theme colors, so they are picked per theme kind. */
+export interface BarColors {
+  fill: string;
+  track: string;
+}
+
+/** Close to VS Code's default progress bar colors. */
+export function barColorsFor(kind: 'light' | 'dark' | 'highContrast' | 'highContrastLight'): BarColors {
+  switch (kind) {
+    case 'light':
+      return { fill: '#0E70C0', track: '#0000001A' };
+    case 'highContrast':
+      return { fill: '#FFFFFF', track: '#FFFFFF40' };
+    case 'highContrastLight':
+      return { fill: '#0F4A85', track: '#00000040' };
+    default:
+      return { fill: '#0E70C0', track: '#FFFFFF1F' };
+  }
+}
+
 export interface PanelData {
+  barColors: BarColors;
   title: string;
   settings: { href: string; tooltip: string };
   sections: PanelSection[];
   links: PanelLink[];
 }
-
-/** Characters of the progress bar: must fit on one line of the hover (46 wrapped). */
-export const BAR_WIDTH = 30;
 
 export function escapeHtml(text: string): string {
   return text.replace(/[&<>"'`\\[\]|*_$]/g, (ch) => `&#${ch.charCodeAt(0)};`);
@@ -64,27 +82,39 @@ function link(href: string, html: string, title?: string): string {
   return `<a href="${escapeHtml(href)}"${t}>${html}</a>`;
 }
 
-/** Thin bar: "━" glyphs colored like the theme's progress bar, the rest in a faint track color. */
-export function progressBar(percent: number, width = BAR_WIDTH): string {
+const HEX = /^#[0-9A-Fa-f]{3,8}$/;
+
+/**
+ * Thin rounded bar like Copilot's: an SVG data image stretched to the panel width (4 px high).
+ * Any usage shows a visible sliver, so 0.9% does not look like 0%.
+ */
+export function progressBar(percent: number, colors: BarColors): string {
   const p = Math.max(0, Math.min(100, percent));
-  // Any usage shows a visible sliver (2 glyphs), so 0.9% does not look like 0%.
-  const filled = p === 0 ? 0 : Math.min(width, Math.max(2, Math.round((p / 100) * width)));
-  const seg = (color: string, n: number) =>
-    n > 0 ? `<span style="color:var(${color});">${'━'.repeat(n)}</span>` : '';
-  return seg('--vscode-progressBar-background', filled) + seg('--vscode-scrollbarSlider-activeBackground', width - filled);
+  const filled = p === 0 ? 0 : Math.max(1.5, p);
+  const fill = HEX.test(colors.fill) ? colors.fill : '#0E70C0';
+  const track = HEX.test(colors.track) ? colors.track : '#80808040';
+  const svg =
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 4" preserveAspectRatio="none">` +
+    `<rect width="100" height="4" rx="2" fill="${track}"/>` +
+    (filled > 0 ? `<rect width="${filled.toFixed(2)}" height="4" rx="2" fill="${fill}"/>` : '') +
+    `</svg>`;
+  return `<img src="data:image/svg+xml;base64,${Buffer.from(svg).toString('base64')}" width="100%" height="4" alt="${p.toFixed(1)}%">`;
 }
 
 function row(left: string, right: string): string {
   return `<tr><td>${left}</td><td align="right">${right}</td></tr>`;
 }
 
-function sectionHtml(s: PanelSection): string {
+function sectionHtml(s: PanelSection, colors: BarColors): string {
   const aside = s.aside ? muted(`${s.asideIcon ? `${icon(s.asideIcon)} ` : ''}${escapeHtml(s.aside)}`) : '';
   const parts = [`<table width="100%">${row(`<strong>${escapeHtml(s.title)}</strong>`, aside)}</table>`];
   if (s.highlight) {
-    parts.push(`<h3>${escapeHtml(s.highlight.value)} <small>${muted(escapeHtml(s.highlight.caption))}</small></h3>`);
+    const value = s.highlight.tooltip
+      ? `<span title="${escapeHtml(s.highlight.tooltip)}">${escapeHtml(s.highlight.value)}</span>`
+      : escapeHtml(s.highlight.value);
+    parts.push(`<h3>${value} <small>${muted(escapeHtml(s.highlight.caption))}</small></h3>`);
   }
-  if (s.progress !== undefined) parts.push(`<p>${progressBar(s.progress)}</p>`);
+  if (s.progress !== undefined) parts.push(`<p>${progressBar(s.progress, colors)}</p>`);
   if (s.rows?.length) {
     const rows = s.rows.map((r) => {
       let value = escapeHtml(r.value);
@@ -106,5 +136,5 @@ export function renderPanel(data: PanelData): string {
   const links = data.links
     .map((l) => link(l.href, `${l.icon ? `${icon(l.icon)} ` : ''}${escapeHtml(l.label)}`))
     .join(' &nbsp;&nbsp; ');
-  return [header, ...data.sections.map(sectionHtml), `<p>${links}</p>`].join('\n\n<hr>\n\n');
+  return [header, ...data.sections.map((s) => sectionHtml(s, data.barColors)), `<p>${links}</p>`].join('\n\n<hr>\n\n');
 }

@@ -14,7 +14,7 @@ import { fromVsCodeMessages, fromVsCodeTools } from './chat/vscodeMessages.ts';
 import { UsageTracker, creditItem, formatPercent, type UsageSummary } from './kiro/usage.ts';
 import { KiroApiError, ModelCatalog, toChatModelInfo, type ChatModelInfo } from './models/catalog.ts';
 import { resolveEffort } from './models/effort.ts';
-import { renderPanel, type PanelLink, type PanelRow, type PanelSection } from './ui/panel.ts';
+import { barColorsFor, renderPanel, type PanelLink, type PanelRow, type PanelSection } from './ui/panel.ts';
 
 /**
  * Model info sent to VS Code. `statusIcon` is proposed API (not in @types/vscode); VS Code 1.142 uses
@@ -434,7 +434,14 @@ export function activate(context: vscode.ExtensionContext): void {
       sections.push({
         title: c.name,
         aside: u.resetsAt ? vscode.l10n.t('Resets {0}', fmtResetDay(u.resetsAt)) : undefined,
-        highlight: percent === undefined ? undefined : { value: `${percent}%`, caption: vscode.l10n.t('used') },
+        highlight:
+          percent === undefined
+            ? undefined
+            : {
+                value: `${percent}%`,
+                caption: vscode.l10n.t('used'),
+                tooltip: c.limit === undefined ? undefined : vscode.l10n.t('{0} / {1} credits used', fmtNumber(c.used), fmtNumber(c.limit)),
+              },
         progress: c.limit === undefined ? undefined : (c.used / c.limit) * 100,
         rows,
       });
@@ -472,6 +479,7 @@ export function activate(context: vscode.ExtensionContext): void {
     const settingsArg = encodeURIComponent(JSON.stringify([`@ext:${context.extension.id}`]));
     md.appendMarkdown(
       renderPanel({
+        barColors: barColorsFor(themeKind()),
         title: u?.plan ? `Kiro ${planName(u.plan).replace(/^Kiro\s+/i, '')}` : 'Kiro Relay',
         settings: { href: `command:workbench.action.openSettings?${settingsArg}`, tooltip: vscode.l10n.t('Open settings') },
         sections,
@@ -479,6 +487,19 @@ export function activate(context: vscode.ExtensionContext): void {
       }),
     );
     return md;
+  }
+
+  function themeKind(): 'light' | 'dark' | 'highContrast' | 'highContrastLight' {
+    switch (vscode.window.activeColorTheme.kind) {
+      case vscode.ColorThemeKind.Light:
+        return 'light';
+      case vscode.ColorThemeKind.HighContrast:
+        return 'highContrast';
+      case vscode.ColorThemeKind.HighContrastLight:
+        return 'highContrastLight';
+      default:
+        return 'dark';
+    }
   }
 
   /** Remaining time of the IAM Identity Center session, marked "≈" when estimated. */
@@ -645,6 +666,8 @@ export function activate(context: vscode.ExtensionContext): void {
   });
 
   const timer = setInterval(() => void refreshStatus(), 60_000);
+  // The bar is an image with fixed colors: redraw it for the new theme.
+  const onTheme = vscode.window.onDidChangeActiveColorTheme(() => renderStatus());
 
   const registration = vscode.lm.registerLanguageModelChatProvider('kirorelay', provider);
 
@@ -659,6 +682,7 @@ export function activate(context: vscode.ExtensionContext): void {
     refreshUsageCmd,
     refreshPanelCmd,
     onConfig,
+    onTheme,
     { dispose: () => usageTimers.forEach((t) => clearTimeout(t)) },
     { dispose: () => clearInterval(timer) },
     registration,

@@ -109,7 +109,10 @@ modelo) é alimentado pelo **participante** (`stream.usage`, Copilot), não pelo
   restante ("restam …"), nunca hora do relógio: o extension host pode estar em UTC.
 - **Barra de status (decisão do dono):** só o ícone do Kiro (+ ⚠/⛔); hover = painel; clique = `kirorelay.refreshPanel` (relê token,
   sessão e créditos em silêncio), porque abrir o hover no clique não é possível para extensões; o menu fica no link "Menu" do painel.
-  Barra de progresso: 30 `━` (46 quebrava em duas linhas).
+  Barra de progresso: **imagem SVG `data:`** (mídia `data:` é permitida no hover) com `width="100%" height="4"`, cantos
+  arredondados, como a do Copilot. Imagem não lê cores do tema: cores por `ColorThemeKind` (`barColorsFor`), redesenhada em
+  `onDidChangeActiveColorTheme`. A troca de texto no hover do Copilot (créditos ↔ %) é DOM dinâmico, impossível em hover de
+  extensão: o percentual tem `title` com "usados / limite".
 - **Raciocínio (F5, 2026-10-21):** o modelo `auto` manda um `reasoningContentEvent` com `"..."` (raciocínio oculto). Um
   `ThinkingPart` nunca fechado prendeu a resposta no bloco "Completed N steps". Regra: ignorar raciocínio só com pontos/espaços e
   **fechar** o bloco com `ThinkingPart('', undefined, { vscode_reasoning_done: true })` antes de texto, tool call ou fim (como o Copilot).

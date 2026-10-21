@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { BAR_WIDTH, escapeHtml, progressBar, renderPanel, type PanelData } from '../src/ui/panel.ts';
+import { barColorsFor, escapeHtml, progressBar, renderPanel, type PanelData } from '../src/ui/panel.ts';
 
 // Rules of the VS Code 1.142 markdown sanitizer (workbench: allowed tags, ICe attributes, style/class checks).
 const ALLOWED_TAGS = new Set(
@@ -34,6 +34,7 @@ function droppedBySanitizer(html: string): string[] {
 }
 
 const DATA: PanelData = {
+  barColors: barColorsFor('dark'),
   title: 'Kiro Pro',
   settings: { href: 'command:workbench.action.openSettings?%5B%22%40ext%3Ax.y%22%5D', tooltip: 'Open settings' },
   sections: [
@@ -81,12 +82,24 @@ test('text is escaped, including markdown and theme-icon characters', () => {
   assert.ok(!html.includes('<script>'));
 });
 
-test('progressBar: proportional, at least a sliver for any usage, always the same width', () => {
-  const filledOf = (html: string) => (html.match(/progressBar-background\);">(━*)</)?.[1] ?? '').length;
-  const total = (html: string) => (html.match(/━/g) ?? []).length;
-  assert.equal(filledOf(progressBar(0)), 0);
-  assert.equal(filledOf(progressBar(0.9)), 2);
-  assert.equal(filledOf(progressBar(50)), BAR_WIDTH / 2);
-  assert.equal(filledOf(progressBar(150)), BAR_WIDTH);
-  for (const p of [0, 0.9, 50, 100]) assert.equal(total(progressBar(p)), BAR_WIDTH);
+test('progressBar: SVG image stretched to the panel, proportional, a sliver for any usage', () => {
+  const colors = barColorsFor('dark');
+  const svgOf = (html: string) =>
+    Buffer.from(html.match(/base64,([A-Za-z0-9+/=]+)"/)![1]!, 'base64').toString('utf8');
+  const html = progressBar(20, colors);
+  assert.match(html, /^<img src="data:image\/svg\+xml;base64,[^"]+" width="100%" height="4" alt="20\.0%">$/);
+  assert.match(svgOf(html), /<rect width="20\.00" height="4" rx="2" fill="#0E70C0"\/>/);
+  assert.match(svgOf(progressBar(0.9, colors)), /<rect width="1\.50"/);
+  assert.equal((svgOf(progressBar(0, colors)).match(/<rect/g) ?? []).length, 1, 'only the track');
+  assert.match(svgOf(progressBar(150, colors)), /<rect width="100\.00" height="4" rx="2" fill="#0E70C0"/);
+  // Invalid colors never reach the SVG.
+  assert.ok(!svgOf(progressBar(5, { fill: 'red"/><script>', track: 'x' })).includes('script'));
+});
+
+test('highlight tooltip shows the credits on mouse-over', () => {
+  const html = renderPanel({
+    ...DATA,
+    sections: [{ title: 'Credits', highlight: { value: '0.9%', caption: 'used', tooltip: '9.97 / 1,000 credits' } }],
+  });
+  assert.match(html, /<span title="9\.97 \/ 1,000 credits">0\.9%<\/span>/);
 });
