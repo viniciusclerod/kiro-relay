@@ -18,6 +18,13 @@ export interface TokenProviderOptions {
   leewayMs?: number;
   now?: () => number;
   log?: Logger;
+  /**
+   * Asks kiro-cli to renew its token (e.g. by running `kiro-cli whoami`). Called when no source has a
+   * usable token but one has an expired (or nearly expired) token. Must not throw.
+   */
+  renew?: () => Promise<unknown>;
+  /** A token closer than this to expiry is never used, even when renewal did not replace it. */
+  minValidityMs?: number;
 }
 
 function toAccessToken(c: Credentials): AccessToken {
@@ -34,16 +41,20 @@ function toAccessToken(c: Credentials): AccessToken {
 
 /**
  * Access token provider that COOPERATES with kiro-cli:
- *  - read-only; never renews or writes (Kiro refresh tokens may be single-use);
+ *  - read-only; never refreshes the token or writes anything itself (Kiro refresh tokens may be
+ *    single-use);
  *  - keeps the token in memory until close to expiry and then RE-READS the sources,
  *    because kiro-cli may have renewed it already;
- *  - if there is no valid token, throws an error telling the user to use kiro-cli.
+ *  - if the token expired, optionally asks kiro-cli to renew it (`renew`) and re-reads once;
+ *  - if there is still no valid token, throws an error telling the user to use kiro-cli.
  */
 export class KiroCliTokenProvider {
   private readonly sources: CredentialSource[];
   private readonly leewayMs: number;
   private readonly now: () => number;
   private readonly log: Logger;
+  private readonly renew: (() => Promise<unknown>) | undefined;
+  private readonly minValidityMs: number;
   private cached: Credentials | undefined;
   private inflight: Promise<AccessToken> | undefined;
 
@@ -52,6 +63,8 @@ export class KiroCliTokenProvider {
     this.leewayMs = opts.leewayMs ?? 300_000;
     this.now = opts.now ?? Date.now;
     this.log = opts.log ?? (() => {});
+    this.renew = opts.renew;
+    this.minValidityMs = opts.minValidityMs ?? 30_000;
   }
 
   /** Drops the cache (e.g. after a 401/403 from the backend). */
@@ -74,10 +87,9 @@ export class KiroCliTokenProvider {
     return c.expiresAt.getTime() - this.leewayMs > this.now();
   }
 
-  private async reload(): Promise<AccessToken> {
+  private async readSources(): Promise<{ usable?: Credentials; expiredBest?: Credentials; notes: string[] }> {
     const notes: string[] = [];
     let expiredBest: Credentials | undefined;
-
     for (const source of this.sources) {
       let result;
       try {
@@ -87,19 +99,38 @@ export class KiroCliTokenProvider {
         continue;
       }
       for (const n of result.notes) notes.push(`[${source.id}] ${n}`);
-
       for (const c of result.credentials) {
-        if (this.isUsable(c)) {
-          this.cached = c;
-          this.log(`valid token from ${c.source}`);
-          return toAccessToken(c);
-        }
+        if (this.isUsable(c)) return { usable: c, notes };
         if (!expiredBest || c.expiresAt > expiredBest.expiresAt) expiredBest = c;
+      }
+    }
+    return { expiredBest, notes };
+  }
+
+  private accept(c: Credentials, how: string): AccessToken {
+    this.cached = c;
+    this.log(`valid token from ${c.source}${how}`);
+    return toAccessToken(c);
+  }
+
+  private async reload(): Promise<AccessToken> {
+    let read = await this.readSources();
+    if (read.usable) return this.accept(read.usable, '');
+
+    // Ask kiro-cli to renew only when there is a token to renew: without one, only "kiro-cli login" helps.
+    if (read.expiredBest && this.renew) {
+      await this.renew();
+      read = await this.readSources();
+      if (read.usable) return this.accept(read.usable, ' after renewal');
+      // kiro-cli only renews close to expiry: a token inside the leeway but still valid is used as is.
+      const c = read.expiredBest;
+      if (c && c.expiresAt.getTime() - this.minValidityMs > this.now()) {
+        return this.accept(c, ' (inside the leeway, kiro-cli did not renew it yet)');
       }
     }
 
     this.cached = undefined;
-    if (expiredBest) throw new TokenExpiredError(expiredBest.expiresAt, expiredBest.source);
-    throw new NotLoggedInError(notes);
+    if (read.expiredBest) throw new TokenExpiredError(read.expiredBest.expiresAt, read.expiredBest.source);
+    throw new NotLoggedInError(read.notes);
   }
 }

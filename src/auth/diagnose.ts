@@ -5,6 +5,7 @@ import { inspectDatabase, firstExisting, type DbInspection } from './kiroCliDb.t
 import { inspectSsoCache } from './ssoCache.ts';
 import { fingerprint, formatDuration } from './redact.ts';
 import { loadNodeSqlite } from './sqliteSnapshot.ts';
+import type { KiroCliRenewer } from './renewer.ts';
 import type { KiroCliTokenProvider } from './tokenProvider.ts';
 
 const execFileAsync = promisify(execFile);
@@ -16,6 +17,7 @@ export interface DiagnoseInput {
   /** Host information (VS Code version etc.). */
   host: Record<string, string>;
   provider: KiroCliTokenProvider;
+  renewer?: KiroCliRenewer;
   now?: () => number;
 }
 
@@ -109,6 +111,24 @@ export async function runDiagnostics(input: DiagnoseInput): Promise<string> {
       );
     }
     if (sso.token.error) lines.push(`    warning: ${sso.token.error}`);
+  }
+
+  section(lines, 'Token renewal');
+  if (!input.renewer?.enabled) lines.push('- disabled (kirorelay.auth.renewCommand is empty)');
+  else {
+    lines.push(`- command: ${input.renewer.commandLine} (run by kiro-cli itself when the token has expired)`);
+    const last = input.renewer.last;
+    if (!last) lines.push('- last run: never in this session');
+    else {
+      const when = new Date(last.at).toISOString();
+      lines.push(
+        last.status === 'ran'
+          ? `- last run: ${when}, exit ${last.exitCode}, ${last.durationMs} ms`
+          : last.status === 'failed'
+            ? `- last run: ${when}, FAILED: ${last.error}`
+            : `- last run: ${when}, skipped`,
+      );
+    }
   }
 
   section(lines, 'Token provider result');

@@ -27,13 +27,17 @@ function estimateTokens(input: string | vscode.LanguageModelChatRequestMessage):
 
 function readConfig(): { auth: AuthConfig; cliPath: string } {
   const c = vscode.workspace.getConfiguration('kirorelay');
+  const cliPath = c.get<string>('cli.path') || 'kiro-cli';
+  const renew = c.get<unknown>('auth.renewCommand');
   return {
-    cliPath: c.get<string>('cli.path') || 'kiro-cli',
+    cliPath,
     auth: {
       sources: c.get<SourceId[]>('auth.sources') ?? ['kiro-cli-db', 'sso-cache'],
       databasePath: c.get<string>('auth.databasePath') || undefined,
       ssoCachePath: c.get<string>('auth.ssoCachePath') || undefined,
       leewaySeconds: c.get<number>('auth.refreshLeewaySeconds') ?? 300,
+      cliPath,
+      renewCommand: Array.isArray(renew) ? renew.filter((a): a is string => typeof a === 'string') : ['whoami'],
     },
   };
 }
@@ -262,6 +266,7 @@ export function activate(context: vscode.ExtensionContext): void {
       databaseCandidates: auth.databaseCandidates,
       ssoCacheDir: auth.ssoCacheDir,
       provider: auth.provider,
+      renewer: auth.renewer,
       host: { vscode: vscode.version, app: vscode.env.appName, language: vscode.env.language },
     });
     out.clear();

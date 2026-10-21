@@ -66,7 +66,8 @@
         "kirorelay.cli.path": {
           "type": "string",
           "default": "kiro-cli",
-          "description": "%config.cli.path.description%"
+          "description": "%config.cli.path.description%",
+          "scope": "machine"
         },
         "kirorelay.auth.sources": {
           "type": "array",
@@ -98,6 +99,17 @@
           "default": 300,
           "minimum": 0,
           "description": "%config.auth.refreshLeewaySeconds.description%"
+        },
+        "kirorelay.auth.renewCommand": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "whoami"
+          ],
+          "scope": "machine",
+          "description": "%config.auth.renewCommand.description%"
         },
         "kirorelay.reasoningEffort": {
           "type": "object",

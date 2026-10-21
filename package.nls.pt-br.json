@@ -5,10 +5,11 @@
   "command.reloadCredentials.title": "Recarregar credenciais",
   "command.refreshModels.title": "Atualizar modelos",
   "command.manage.title": "Gerenciar",
-  "config.cli.path.description": "Caminho do executável do kiro-cli (usado só no diagnóstico por enquanto).",
+  "config.cli.path.description": "Caminho do executável do kiro-cli (usado no diagnóstico e na renovação do token).",
   "config.auth.sources.description": "Fontes de credenciais, em ordem de prioridade. 'kiro-cli-db' = banco SQLite do kiro-cli; 'sso-cache' = ~/.aws/sso/cache/kiro-auth-token.json.",
   "config.auth.databasePath.description": "Caminho do data.sqlite3 do kiro-cli. Vazio = detectar automaticamente.",
   "config.auth.ssoCachePath.description": "Diretório do cache SSO. Vazio = ~/.aws/sso/cache.",
   "config.auth.refreshLeewaySeconds.description": "Margem antes do vencimento em que o token deixa de ser considerado válido.",
-  "config.reasoningEffort.markdownDescription": "Esforço de raciocínio por modelo, por exemplo `{ \"claude-opus-5\": \"xhigh\" }`. Uma escolha no seletor de modelos do Chat tem prioridade. Níveis que o modelo não aceita são ignorados."
+  "config.reasoningEffort.markdownDescription": "Esforço de raciocínio por modelo, por exemplo `{ \"claude-opus-5\": \"xhigh\" }`. Uma escolha no seletor de modelos do Chat tem prioridade. Níveis que o modelo não aceita são ignorados.",
+  "config.auth.renewCommand.description": "Argumentos do kiro-cli que a extensão executa para o kiro-cli renovar um token vencido (padrão: whoami). Lista vazia = nunca executar o kiro-cli; você renova usando o kiro-cli."
 }

@@ -5,10 +5,11 @@
   "command.reloadCredentials.title": "Reload Credentials",
   "command.refreshModels.title": "Refresh Models",
   "command.manage.title": "Manage",
-  "config.cli.path.description": "Path to the kiro-cli executable (used by diagnostics for now).",
+  "config.cli.path.description": "Path to the kiro-cli executable (used for diagnostics and token renewal).",
   "config.auth.sources.description": "Credential sources, in priority order. 'kiro-cli-db' = kiro-cli's SQLite database; 'sso-cache' = ~/.aws/sso/cache/kiro-auth-token.json.",
   "config.auth.databasePath.description": "Path to kiro-cli's data.sqlite3. Empty = detect automatically.",
   "config.auth.ssoCachePath.description": "Directory of the SSO cache. Empty = ~/.aws/sso/cache.",
   "config.auth.refreshLeewaySeconds.description": "Margin before expiry at which the token is no longer treated as valid.",
-  "config.reasoningEffort.markdownDescription": "Thinking effort per model, for example `{ \"claude-opus-5\": \"xhigh\" }`. A choice in the Chat model picker takes precedence. Levels the model does not accept are ignored."
+  "config.reasoningEffort.markdownDescription": "Thinking effort per model, for example `{ \"claude-opus-5\": \"xhigh\" }`. A choice in the Chat model picker takes precedence. Levels the model does not accept are ignored.",
+  "config.auth.renewCommand.description": "kiro-cli arguments the extension runs to have kiro-cli renew an expired token (default: whoami). Empty list = never run kiro-cli; you renew it yourself by using kiro-cli."
 }

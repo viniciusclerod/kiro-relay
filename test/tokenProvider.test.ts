@@ -107,3 +107,79 @@ test('concurrent calls share a single read', async () => {
   assert.ok(r.every((x) => x.token === 'T'));
   assert.equal(s.loads, 1);
 });
+
+// ---------------------------------------------------------------------------
+// Renewal through kiro-cli (the `renew` hook)
+// ---------------------------------------------------------------------------
+
+test('expired token: asks kiro-cli to renew, re-reads and returns the renewed token', async () => {
+  const s = new FakeSource('db', { credentials: [cred('OLD', -MIN)], notes: [] });
+  let renewals = 0;
+  const p = new KiroCliTokenProvider({
+    sources: [s],
+    now: () => T0,
+    renew: async () => {
+      renewals++;
+      s.result = { credentials: [cred('NEW', 60 * MIN)], notes: [] }; // kiro-cli wrote a new token
+    },
+  });
+  assert.equal((await p.getAccessToken()).token, 'NEW');
+  assert.equal(renewals, 1);
+  assert.equal(s.loads, 2);
+});
+
+test('valid token: kiro-cli is never run', async () => {
+  const s = new FakeSource('db', { credentials: [cred('T', 60 * MIN)], notes: [] });
+  let renewals = 0;
+  const p = new KiroCliTokenProvider({ sources: [s], now: () => T0, renew: async () => void renewals++ });
+  await p.getAccessToken();
+  await p.getAccessToken({ forceReload: true });
+  assert.equal(renewals, 0);
+});
+
+test('inside the leeway but still valid: used as is when kiro-cli did not renew it', async () => {
+  const s = new FakeSource('db', { credentials: [cred('ALMOST', 2 * MIN)], notes: [] });
+  let renewals = 0;
+  const p = new KiroCliTokenProvider({ sources: [s], leewayMs: 5 * MIN, now: () => T0, renew: async () => void renewals++ });
+  assert.equal((await p.getAccessToken()).token, 'ALMOST');
+  assert.equal(renewals, 1);
+});
+
+test('too close to expiry after renewal: TokenExpiredError', async () => {
+  const s = new FakeSource('db', { credentials: [cred('EDGE', 10_000)], notes: [] });
+  const p = new KiroCliTokenProvider({ sources: [s], now: () => T0, renew: async () => {}, minValidityMs: 30_000 });
+  await assert.rejects(p.getAccessToken(), TokenExpiredError);
+});
+
+test('session ended: kiro-cli deleted the token, so NotLoggedInError', async () => {
+  const s = new FakeSource('db', { credentials: [cred('OLD', -MIN)], notes: [] });
+  const p = new KiroCliTokenProvider({
+    sources: [s],
+    now: () => T0,
+    renew: async () => {
+      s.result = { credentials: [], notes: ['none of the token keys exist in auth_kv'] };
+    },
+  });
+  await assert.rejects(p.getAccessToken(), (e) => {
+    assert.ok(e instanceof NotLoggedInError);
+    assert.deepEqual(e.details, ['[db] none of the token keys exist in auth_kv']);
+    return true;
+  });
+});
+
+test('no credentials at all: renewal is not attempted (only "kiro-cli login" helps)', async () => {
+  const s = new FakeSource('db', { credentials: [], notes: ['database not found'] });
+  let renewals = 0;
+  const p = new KiroCliTokenProvider({ sources: [s], now: () => T0, renew: async () => void renewals++ });
+  await assert.rejects(p.getAccessToken(), NotLoggedInError);
+  assert.equal(renewals, 0);
+});
+
+test('renewal that changes nothing: TokenExpiredError, and concurrent callers share one renewal', async () => {
+  const s = new FakeSource('db', { credentials: [cred('OLD', -MIN)], notes: [] });
+  let renewals = 0;
+  const p = new KiroCliTokenProvider({ sources: [s], now: () => T0, renew: async () => void renewals++ });
+  const results = await Promise.allSettled([p.getAccessToken(), p.getAccessToken()]);
+  assert.ok(results.every((r) => r.status === 'rejected' && r.reason instanceof TokenExpiredError));
+  assert.equal(renewals, 1);
+});
