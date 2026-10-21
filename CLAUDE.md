@@ -36,7 +36,12 @@ linguagem** (`vscode.lm.registerLanguageModelChatProvider`) no Chat do VS Code, 
 - Testes: `node:test`, sem rede e sem VS Code (`npm test`). Typecheck: `npm run typecheck`. Build: `npm run build`
   (esbuild, CJS, `external: ['vscode', 'node:sqlite']`). CI: `npm ci` + typecheck + test + build.
 - Commits no estilo Conventional Commits. Não fazer refatorações fora do escopo da tarefa.
-- Mensagens de UI hoje estão em português; plano é migrar para inglês por padrão com `vscode.l10n`.
+- **Idioma (decisão do dono, 2026-10-21): inglês é o idioma oficial** do produto e do código: textos de UI (fonte), logs,
+  relatório de diagnóstico, mensagens de erro, comentários, nomes de testes, README e CONTRIBUTING. Só este CLAUDE.md e a conversa
+  com o dono ficam em português. A **UI é traduzida para pt-BR**: `vscode.l10n.t('texto em inglês')` só em `extension.ts`, com a
+  tradução em `l10n/bundle.l10n.pt-br.json`; o manifesto usa `%chave%` com `package.nls.json` e `package.nls.pt-br.json`.
+  **Logs e diagnóstico não são traduzidos.** Os módulos puros geram mensagens em inglês (servem para log); a UI traduz a partir do
+  `code`/campos dos erros. `test/l10n.test.ts` falha se faltar tradução ou se os placeholders divergirem.
 
 ## Estado atual
 
@@ -46,6 +51,8 @@ linguagem** (`vscode.lm.registerLanguageModelChatProvider`) no Chat do VS Code, 
   `src/models/catalog.ts` (puro) e o registro `vscode.lm.registerLanguageModelChatProvider('kirorelay', …)` em `extension.ts`.
   O chat (`provideLanguageModelChatResponse`) ainda lança "não implementado" (mas já calcula e registra o esforço escolhido).
   `provideTokenCount` é uma estimativa (~4 caracteres/token). Verificado no F5: grupo "Kiro" no seletor com os 20 modelos.
+
+Textos ao dono continuam em português; o código e o produto, em inglês (ver Convenções).
 
 Estrutura relevante: `src/extension.ts` (comandos `kirorelay.diagnose`, `kirorelay.reloadCredentials`, `kirorelay.refreshModels`,
 `kirorelay.manage` (managementCommand do provedor), status bar, provedor de modelos), `src/auth/` (`credentials`, `kiroCliDb`,
@@ -119,7 +126,7 @@ Medido com o diagnóstico (só fingerprints e datas) e um monitor da data de mod
 3. ~~Catálogo de modelos (`ListAvailableModels`, REST) e `provideLanguageModelChatInformation`.~~ Feito e verificado no F5.
 4. Chat só texto com streaming (`provideLanguageModelChatResponse`), `provideTokenCount` (estimativa).
 5. Tool calling, imagens, variantes de esforço (`modelo:nivel` como itens separados no picker).
-6. i18n (inglês padrão), ícone, LICENSE (nome), CHANGELOG, publicação (Marketplace + **Open VSX**, usado pelo Kiro IDE).
+6. ~~i18n (inglês padrão + pt-BR)~~ feito. Ícone, LICENSE (nome), CHANGELOG, publicação (Marketplace + **Open VSX**, usado pelo Kiro IDE).
 
 ## Referência do protocolo do Kiro (engenharia reversa, **não oficial**)
 

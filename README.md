@@ -9,6 +9,8 @@ Use the models from your **Kiro** subscription inside **VS Code Chat**, authenti
 > **Preview.** This version lists your Kiro models in the Chat model picker, but **chat responses are
 > not implemented yet**: picking a Kiro model and sending a message fails with an explicit error.
 
+Available in English and Brazilian Portuguese (follows the VS Code display language).
+
 ## Requirements
 
 - VS Code 1.104 or newer

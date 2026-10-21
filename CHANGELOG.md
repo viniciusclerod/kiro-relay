@@ -11,3 +11,5 @@
   the refresh token fingerprint and the OIDC client secret expiry.
 - Thinking effort per model in the Chat model picker (models that support it), with the
   `kirorelay.reasoningEffort` setting as a fallback. Takes effect once chat responses are implemented.
+- English is the default language; the UI is translated to Brazilian Portuguese. Logs and the
+  diagnostics report are always in English.

@@ -1,126 +1,134 @@
-# Contribuindo com o Kiro Relay
+# Contributing to Kiro Relay
 
-Provedor de modelos de linguagem para o VS Code que usa **somente** a autenticação do `kiro-cli`.
+A language model provider for VS Code that uses **only** the `kiro-cli` authentication.
 
-**Etapa atual: autenticação + catálogo de modelos.** A extensão lê com segurança as credenciais do
-kiro-cli, tem um comando de diagnóstico e um indicador na barra de status, e registra o provedor de
-modelos `kirorelay`, que lista os modelos do Kiro no seletor do Chat. O chat em si ainda não existe.
+**Current stage: authentication + model catalog.** The extension reads the kiro-cli credentials
+safely, has a diagnostics command and a status bar indicator, and registers the `kirorelay` model
+provider, which lists the Kiro models (with thinking effort where supported) in the Chat model
+picker. Chat itself does not exist yet.
 
-## Princípios de segurança (valem para as próximas etapas)
+## Security principles
 
-- **Somente leitura e cooperativo.** Os refresh tokens do Kiro são de uso único: renovar por fora
-  pode invalidar o token guardado pelo kiro-cli e deslogá-lo. Por isso a extensão **nunca renova**
-  o token. Perto do vencimento ela relê as fontes, porque o kiro-cli pode já ter renovado.
-- **Snapshot do banco.** O `data.sqlite3` do kiro-cli é copiado (junto com o `-wal`) para um
-  diretório temporário privado e a cópia é aberta. O original nunca é aberto, então nada é criado
-  ou travado ao lado dele. A cópia é apagada logo depois.
-- **Sem segredos em log, relatório ou disco.** Diagnósticos mostram só nomes de campos, datas e um
-  fingerprint curto (8 hex do SHA-256).
+- **Read-only and cooperative.** Kiro refresh tokens may be single-use: renewing from outside could
+  invalidate the token kiro-cli keeps and sign it out. That is why the extension **never renews**
+  the token. Close to expiry it re-reads the sources, because kiro-cli may already have renewed it.
+- **Database snapshot.** kiro-cli's `data.sqlite3` is copied (together with the `-wal`) to a private
+  temporary directory and the copy is opened. The original is never opened, so nothing is created
+  or locked next to it. The copy is deleted right afterwards.
+- **No secrets in logs, reports or on disk.** Diagnostics only show field names, dates and a short
+  fingerprint (8 hex characters of the SHA-256).
 
-## Desenvolvimento com devcontainer (recomendado)
+## Language
 
-Você só precisa de **VS Code + extensão Dev Containers + Docker**. Não é preciso Node na máquina.
+English is the official language of the product and the code: UI source strings, logs, the
+diagnostics report, comments, test names and documentation. The UI is translated to Brazilian
+Portuguese:
 
-1. Abra a pasta no VS Code e escolha **Dev Containers: Reopen in Container**.
-2. Aguarde o `postCreateCommand`: ele roda `npm install` e instala o kiro-cli em `~/.local/bin`.
-3. No terminal do container, faça o login (fluxo por código de dispositivo, sem navegador no container):
+- runtime strings: wrap them in `vscode.l10n.t('English text')` (only in `src/extension.ts`) and add
+  the translation to `l10n/bundle.l10n.pt-br.json`;
+- manifest strings: use `%key%` in `package.json` and add the key to `package.nls.json` and
+  `package.nls.pt-br.json`.
+
+Logs and the diagnostics report are **not** translated, so issues stay searchable. `npm test`
+fails if a UI string or manifest key has no pt-BR translation.
+
+## Development with the devcontainer (recommended)
+
+You only need **VS Code + the Dev Containers extension + Docker**. Node is not needed on your machine.
+
+1. Open the folder in VS Code and choose **Dev Containers: Reopen in Container**.
+2. Wait for `postCreateCommand`: it runs `npm install` and installs kiro-cli in `~/.local/bin`.
+3. In the container terminal, sign in (device code flow, no browser in the container):
    ```bash
-   /home/node/.local/bin/kiro-cli login --use-device-flow
+   kiro-cli login --use-device-flow
    ```
-   Abra a URL mostrada no navegador do seu computador e informe o código. O login fica num
-   volume nomeado e **sobrevive a rebuilds** do container.
-4. Rode `npm test` e `npm run typecheck` no terminal.
-5. Siga "Testar no VS Code" abaixo.
+   Open the URL it prints in your computer's browser and enter the code. The login lives in the
+   container, so a container rebuild requires signing in again.
+4. Run `npm test` and `npm run typecheck` in the terminal.
+5. Follow "Testing in VS Code" below.
 
-> **Por que logar dentro do container?** No VS Code remoto (devcontainer, WSL, SSH) a extensão em
-> desenvolvimento roda **dentro do container** e lê os arquivos **de lá**, não os do seu host.
-> A alternativa de reaproveitar o login do host (bind mount somente leitura) está documentada,
-> comentada, no final do `.devcontainer/devcontainer.json`.
+> **Why sign in inside the container?** In remote VS Code (devcontainer, WSL, SSH) the extension
+> under development runs **inside the container** and reads files **from there**, not from your host.
 
-### Primeiro commit
-
-O repositório é `https://github.com/viniciusclerod/kiro-relay`. Depois do primeiro `npm install`
-no devcontainer (que gera o `package-lock.json`):
+## Choosing the name
 
 ```bash
-git add .
-git commit -m "feat: autenticação via kiro-cli"
-git push -u origin main
+npm run check-name -- "Name A" "Name B"
 ```
 
-Faça commit do `package-lock.json` gerado pelo primeiro `npm install` (o CI usa `npm ci`).
-Falta ainda preencher o nome no `LICENSE`. O `publisher` está como `viniciusclerod`: crie esse publisher
-no Marketplace (e o namespace no Open VSX) antes de publicar, ou troque o valor.
+Queries the VS Code Marketplace and Open VSX (the registry used by the Kiro IDE). No results does
+not mean available: the final proof is reserving the `publisher.name` ID when publishing.
 
-## Escolher o nome
+## Without the devcontainer
 
-```bash
-npm run check-name -- "Nome A" "Nome B"
-```
+Requirements: VS Code 1.104+, Node 22.18+ and kiro-cli installed and signed in.
 
-Consulta o VS Code Marketplace e o Open VSX (registro usado pelo Kiro IDE). Sem resultado não
-significa disponível: a prova final é reservar o ID `publisher.nome` ao publicar.
-
-## Sem devcontainer
-
-Requisitos: VS Code 1.104+, Node 22.18+ e kiro-cli instalado e logado.
-
-## Comandos
+## Commands
 
 ```bash
 npm install
-npm test            # 26 testes da camada de autenticação (sem rede, sem VS Code)
+npm test            # unit tests (no network, no VS Code)
 npm run typecheck   # tsc --noEmit
-npm run build       # gera dist/extension.js com esbuild
+npm run build       # builds dist/extension.js with esbuild
 ```
 
-## Testar no VS Code
+## Testing in VS Code
 
-1. Com a pasta aberta (no devcontainer, se for o caso), pressione **F5** (configuração "Run Extension"). Abre uma janela
-   **[Extension Development Host]** (no devcontainer, ela também roda dentro do container).
-2. Nessa janela: `Ctrl/Cmd+Shift+P` → **Kiro Relay: Diagnose Authentication**.
-3. Leia o painel **Output → "Kiro Relay"**. Use "Copiar relatório" no aviso que aparece.
-4. Na barra de status (canto direito) deve aparecer algo como `✓ Kiro 55 min`.
+1. With the folder open (in the devcontainer, if that is your setup), press **F5** ("Run
+   Extension"). An **[Extension Development Host]** window opens (in the devcontainer it also runs
+   inside the container).
+2. In that window: `Ctrl/Cmd+Shift+P` → **Kiro Relay: Diagnose Authentication**.
+3. Read the **Output → "Kiro Relay"** panel. Use "Copy report" in the notification.
+4. The status bar (right side) should show something like `✓ Kiro 55 min`.
+5. Open the Chat model picker: a **Kiro** group lists the models of your subscription.
 
-### Roteiro de testes manuais
+To check the pt-BR translation, run **Configure Display Language**, pick `pt-br` (install the
+Portuguese language pack if asked) and restart.
 
-| # | Cenário | Esperado |
+### Manual test plan
+
+| # | Scenario | Expected |
 |---|---|---|
-| 1 | kiro-cli logado, token válido | `✓ Kiro N min`; diagnóstico com "OK: token válido obtido" |
-| 2 | `kiro-cli logout`, depois **Kiro Relay: Reload Credentials** | `⚠ Kiro: login necessário`; diagnóstico lista o que foi procurado e onde |
-| 3 | `kiro-cli login --use-device-flow` (no devcontainer), depois **Reload Credentials** | volta a `✓` |
-| 4 | Token vencido sem usar o kiro-cli por mais de 1 h | `⚠ Kiro: token expirado` |
-| 5 | Usar o kiro-cli (ex.: uma mensagem no `kiro-cli chat`), depois **Reload Credentials** | volta a `✓` (hipótese a confirmar: o kiro-cli renova ao ser usado) |
-| 6 | Conferir que a extensão não mexe no kiro-cli | listar o diretório do banco antes/depois: nenhum arquivo novo; `kiro-cli` continua logado |
-| 7 | Settings: `kirorelay.auth.sources = ["sso-cache"]` | só a fonte JSON é usada |
-| 8 | Settings: `kirorelay.auth.databasePath` apontando para outro caminho | o diagnóstico mostra o novo candidato |
+| 1 | kiro-cli signed in, valid token | `✓ Kiro N min`; diagnostics say "OK: got a valid token" |
+| 2 | `kiro-cli logout`, then **Kiro Relay: Reload Credentials** | `⚠ Kiro: sign-in required`; diagnostics list what was searched and where |
+| 3 | `kiro-cli login --use-device-flow` (in the devcontainer), then **Reload Credentials** | back to `✓` |
+| 4 | Token expired without using kiro-cli | `⚠ Kiro: token expired` |
+| 5 | `kiro-cli whoami` after expiry, then **Reload Credentials** | back to `✓` (kiro-cli renews the token once it has expired) |
+| 6 | Check that the extension does not touch kiro-cli | list the database directory before/after: no new files; `kiro-cli` stays signed in |
+| 7 | Settings: `kirorelay.auth.sources = ["sso-cache"]` | only the JSON source is used |
+| 8 | Settings: `kirorelay.auth.databasePath` pointing elsewhere | diagnostics show the new candidate |
+| 9 | Chat model picker → a Claude or GPT model → Details | a **Thinking Effort** menu with the model's levels |
 
-### Se algo falhar
+### If something fails
 
-- **`node:sqlite: INDISPONÍVEL`** no diagnóstico: o Node embutido na sua versão do VS Code não
-  tem o módulo. Me envie o relatório, o plano é adicionar o fallback com `sql.js`.
-- **Banco não encontrado**: ajuste `kirorelay.auth.databasePath` e rode o diagnóstico de novo.
-- Mais detalhes: `Developer: Toggle Developer Tools` (aba Console) e `Developer: Show Running Extensions`.
+- **`node:sqlite: UNAVAILABLE`** in the diagnostics: the Node bundled with your VS Code version does
+  not have the module. Open an issue with the report; the plan is a `sql.js` fallback.
+- **Database not found**: set `kirorelay.auth.databasePath` and run the diagnostics again.
+- More details: `Developer: Toggle Developer Tools` (Console tab) and `Developer: Show Running Extensions`.
 
-## Estrutura
+## Layout
 
 ```
 src/
-  extension.ts          # comandos, status bar (única parte que importa 'vscode')
+  extension.ts          # commands, status bar, model provider (the only file that imports 'vscode')
   auth/
-    credentials.ts      # parsing tolerante (snake_case/camelCase, timestamps com nanos)
+    credentials.ts      # tolerant parsing (snake_case/camelCase, timestamps with nanoseconds)
     sqliteSnapshot.ts   # snapshot + node:sqlite
-    kiroCliDb.ts        # fonte: banco do kiro-cli (+ inspeção p/ diagnóstico)
-    ssoCache.ts         # fonte: ~/.aws/sso/cache/kiro-auth-token.json
-    tokenProvider.ts    # provedor cooperativo (cache, releitura, single-flight)
-    diagnose.ts         # relatório sem segredos
+    kiroCliDb.ts        # source: kiro-cli database (+ inspection for diagnostics)
+    ssoCache.ts         # source: ~/.aws/sso/cache/kiro-auth-token.json
+    tokenProvider.ts    # cooperative provider (cache, re-read, single-flight)
+    diagnose.ts         # report without secrets
     factory.ts, paths.ts, errors.ts, redact.ts, source.ts
-test/                   # node:test, rodam sem VS Code
+  models/
+    catalog.ts          # ListAvailableModels client, cache, conversion to the VS Code format
+    effort.ts           # thinking effort per model
+l10n/                   # runtime UI translations (bundle.l10n.pt-br.json)
+package.nls*.json       # manifest translations
+test/                   # node:test, runs without VS Code
 ```
 
-## Próximas etapas
+## Next steps
 
-1. Validar o diagnóstico na sua máquina e ajustar caminhos/chaves.
-2. Spike do cliente `@aws/codewhisperer-streaming-client` (endpoint, headers, campos).
-3. Catálogo de modelos + `provideLanguageModelChatInformation`.
-4. Chat só com texto (streaming), depois tools, imagens e esforço de raciocínio.
+1. Chat with text only (streaming), sending the chosen thinking effort.
+2. Tool calling and images.
+3. Token renewal through kiro-cli (deferred), icon, publishing (Marketplace + Open VSX).
