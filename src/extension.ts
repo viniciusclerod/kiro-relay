@@ -9,7 +9,7 @@ import { FirstOutputTimeoutError, streamChat } from './chat/client.ts';
 import { RequestBuildError, buildRequest } from './chat/request.ts';
 import { KiroStreamError } from './chat/response.ts';
 import { fromVsCodeMessages, fromVsCodeTools } from './chat/vscodeMessages.ts';
-import { UsageTracker, creditItem, type UsageSummary } from './kiro/usage.ts';
+import { UsageTracker, creditItem, formatPercent, type UsageSummary } from './kiro/usage.ts';
 import { KiroApiError, ModelCatalog, toChatModelInfo, type ChatModelInfo } from './models/catalog.ts';
 import { resolveEffort } from './models/effort.ts';
 
@@ -262,7 +262,9 @@ export function activate(context: vscode.ExtensionContext): void {
 
   const status = vscode.window.createStatusBarItem('kirorelay.status', vscode.StatusBarAlignment.Right, 50);
   status.name = 'Kiro Relay';
-  status.command = 'kirorelay.manage';
+  // No command: VS Code does not let extensions open the hover on click (Copilot uses an internal
+  // command), so clicking does nothing and the hover, which opens on mouse-over, is the panel.
+  status.command = undefined;
 
   /** What the status bar and the menu show, refreshed by refreshStatus(). */
   let state: {
@@ -317,7 +319,8 @@ export function activate(context: vscode.ExtensionContext): void {
     const c = u && creditItem(u);
     if (!c) return undefined;
     const amount = c.limit === undefined ? fmtNumber(c.used) : `${fmtNumber(c.used)} / ${fmtNumber(c.limit)}`;
-    const pct = c.percentUsed === undefined ? '' : ` (${vscode.l10n.t('{0}% used', c.percentUsed)})`;
+    const percent = formatPercent(c, lang);
+    const pct = percent === undefined ? '' : ` (${vscode.l10n.t('{0}% used', percent)})`;
     return `${c.name}: ${amount}${pct}`;
   }
 
@@ -357,9 +360,10 @@ export function activate(context: vscode.ExtensionContext): void {
     if (c) {
       const reset = u.resetsAt ? vscode.l10n.t('Resets {0}', fmtResetDay(u.resetsAt)) : '';
       md.appendMarkdown(`| **${c.name}** | ${reset} |\n|:--|--:|\n\n`);
-      if (c.limit !== undefined && c.percentUsed !== undefined) {
-        md.appendMarkdown(`### ${c.percentUsed}% <small>${vscode.l10n.t('used')}</small>\n\n`);
-        md.appendMarkdown(`${progressSpans(c.percentUsed)}\n\n`);
+      const percent = formatPercent(c, lang);
+      if (c.limit !== undefined && percent !== undefined) {
+        md.appendMarkdown(`### ${percent}% <small>${vscode.l10n.t('used')}</small>\n\n`);
+        md.appendMarkdown(`${progressSpans((c.used / c.limit) * 100)}\n\n`);
         md.appendMarkdown(`<small>${fmtNumber(c.used)} / ${fmtNumber(c.limit)}</small>\n\n`);
       } else {
         md.appendMarkdown(`${vscode.l10n.t('{0} used, no limit', fmtNumber(c.used))}\n\n`);

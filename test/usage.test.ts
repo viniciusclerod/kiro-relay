@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import type { AccessToken } from '../src/auth/tokenProvider.ts';
 import type { FetchFn } from '../src/kiro/api.ts';
-import { UsageTracker, creditItem, getUsageLimits, parseUsage, progressBar } from '../src/kiro/usage.ts';
+import { UsageTracker, creditItem, formatPercent, getUsageLimits, parseUsage, progressBar } from '../src/kiro/usage.ts';
 
 const ARN = 'arn:aws:codewhisperer:us-east-1:123456789012:profile/ABCDEF';
 
@@ -173,4 +173,16 @@ test('creditItem and progressBar', () => {
   assert.equal(progressBar(20), '▰▰▱▱▱▱▱▱▱▱');
   assert.equal(progressBar(100), '▰▰▰▰▰▰▰▰▰▰');
   assert.equal(progressBar(250, 4), '▰▰▰▰');
+});
+
+test('formatPercent: one decimal below 10%, never rounds up', () => {
+  const item = (used: number, limit?: number) => ({ resourceType: 'CREDIT', name: 'Credits', used, limit });
+  assert.equal(formatPercent(item(8.69, 1000), 'en'), '0.8');
+  assert.equal(formatPercent(item(8.69, 1000), 'pt-BR'), '0,8');
+  assert.equal(formatPercent(item(0, 1000), 'en'), '0');
+  assert.equal(formatPercent(item(99.99, 1000), 'en'), '9.9');
+  assert.equal(formatPercent(item(100, 1000), 'en'), '10');
+  assert.equal(formatPercent(item(199.9, 1000), 'en'), '19');
+  assert.equal(formatPercent(item(5000, 1000), 'en'), '100');
+  assert.equal(formatPercent(item(5, undefined), 'en'), undefined);
 });

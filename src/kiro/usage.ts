@@ -140,6 +140,18 @@ export async function getUsageLimits(opts: {
   return parseUsage(await res.json());
 }
 
+/**
+ * Percentage for display, never overstating usage: one decimal below 10% (0.869% -> "0.8"), whole
+ * numbers above (19.9% -> "19"). The Kiro IDE shows whole numbers only, which stays at 0% for the
+ * first 1% of the plan.
+ */
+export function formatPercent(item: UsageItem, locale?: string): string | undefined {
+  if (item.limit === undefined) return undefined;
+  const exact = Math.min(100, (item.used / item.limit) * 100);
+  const value = exact < 10 ? Math.floor(exact * 10) / 10 : Math.floor(exact);
+  return value.toLocaleString(locale, { maximumFractionDigits: 1 });
+}
+
 /** The credit item, when the plan has one (the usual case). */
 export function creditItem(u: UsageSummary): UsageItem | undefined {
   return u.items.find((i) => i.resourceType === 'CREDIT') ?? u.items[0];
