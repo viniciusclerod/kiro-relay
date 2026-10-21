@@ -51,8 +51,8 @@
   "Token": "Token",
   "Kiro session": "Sessão do Kiro",
   "{0} left": "restam {0}",
-  "unknown (up to {0} h after sign-in)": "desconhecida (até {0} h após o login)",
   "estimate": "estimativa",
   "1 interaction": "1 interação",
-  "{0} interactions": "{0} interações"
+  "{0} interactions": "{0} interações",
+  "not tracked (signed in earlier, up to {0} h)": "não acompanhada (login anterior, até {0} h)"
 }

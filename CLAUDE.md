@@ -107,7 +107,9 @@ modelo) é alimentado pelo **participante** (`stream.usage`, Copilot), não pelo
   de ≥55 min = login agora → fim ≈ login + `kirorelay.auth.sessionHours` (8). Renovação recente (≤3 min) que devolve token de <50 min =
   token cortado pelo fim da sessão → fim exato. Guardado em `globalState['kirorelay.session']` (só fingerprint). Mostrado como tempo
   restante ("restam …"), nunca hora do relógio: o extension host pode estar em UTC.
-- **Barra de status (decisão do dono):** só o ícone do Kiro (+ ⚠/⛔); clique = menu (QuickPick); hover = painel.
+- **Barra de status (decisão do dono):** só o ícone do Kiro (+ ⚠/⛔); hover = painel; clique = `kirorelay.refreshPanel` (relê token,
+  sessão e créditos em silêncio), porque abrir o hover no clique não é possível para extensões; o menu fica no link "Menu" do painel.
+  Barra de progresso: 30 `━` (46 quebrava em duas linhas).
 - **Raciocínio (F5, 2026-10-21):** o modelo `auto` manda um `reasoningContentEvent` com `"..."` (raciocínio oculto). Um
   `ThinkingPart` nunca fechado prendeu a resposta no bloco "Completed N steps". Regra: ignorar raciocínio só com pontos/espaços e
   **fechar** o bloco com `ThinkingPart('', undefined, { vscode_reasoning_done: true })` antes de texto, tool call ou fim (como o Copilot).

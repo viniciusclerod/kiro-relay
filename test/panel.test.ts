@@ -85,7 +85,7 @@ test('progressBar: proportional, at least a sliver for any usage, always the sam
   const filledOf = (html: string) => (html.match(/progressBar-background\);">(━*)</)?.[1] ?? '').length;
   const total = (html: string) => (html.match(/━/g) ?? []).length;
   assert.equal(filledOf(progressBar(0)), 0);
-  assert.equal(filledOf(progressBar(0.9)), 1);
+  assert.equal(filledOf(progressBar(0.9)), 2);
   assert.equal(filledOf(progressBar(50)), BAR_WIDTH / 2);
   assert.equal(filledOf(progressBar(150)), BAR_WIDTH);
   for (const p of [0, 0.9, 50, 100]) assert.equal(total(progressBar(p)), BAR_WIDTH);

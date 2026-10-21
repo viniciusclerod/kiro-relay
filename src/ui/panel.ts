@@ -42,8 +42,8 @@ export interface PanelData {
   links: PanelLink[];
 }
 
-/** Characters of the progress bar; sets the panel's minimum width. */
-export const BAR_WIDTH = 46;
+/** Characters of the progress bar: must fit on one line of the hover (46 wrapped). */
+export const BAR_WIDTH = 30;
 
 export function escapeHtml(text: string): string {
   return text.replace(/[&<>"'`\\[\]|*_$]/g, (ch) => `&#${ch.charCodeAt(0)};`);
@@ -67,8 +67,8 @@ function link(href: string, html: string, title?: string): string {
 /** Thin bar: "━" glyphs colored like the theme's progress bar, the rest in a faint track color. */
 export function progressBar(percent: number, width = BAR_WIDTH): string {
   const p = Math.max(0, Math.min(100, percent));
-  // Any usage shows at least a sliver, so 0.9% does not look like 0%.
-  const filled = p === 0 ? 0 : Math.max(1, Math.round((p / 100) * width));
+  // Any usage shows a visible sliver (2 glyphs), so 0.9% does not look like 0%.
+  const filled = p === 0 ? 0 : Math.min(width, Math.max(2, Math.round((p / 100) * width)));
   const seg = (color: string, n: number) =>
     n > 0 ? `<span style="color:var(${color});">${'━'.repeat(n)}</span>` : '';
   return seg('--vscode-progressBar-background', filled) + seg('--vscode-scrollbarSlider-activeBackground', width - filled);

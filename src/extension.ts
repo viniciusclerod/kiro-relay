@@ -301,9 +301,9 @@ export function activate(context: vscode.ExtensionContext): void {
 
   const status = vscode.window.createStatusBarItem('kirorelay.status', vscode.StatusBarAlignment.Right, 50);
   status.name = 'Kiro Relay';
-  // Hover = the Copilot-style panel; click = the Kiro Relay menu. (VS Code only opens a status bar hover
-  // on click for its own items: Copilot uses an internal command compared by identity.)
-  status.command = 'kirorelay.manage';
+  // Hover = the Copilot-style panel. VS Code only opens a status bar hover on click for its own items
+  // (Copilot uses an internal command compared by identity), so a click refreshes the panel quietly.
+  status.command = 'kirorelay.refreshPanel';
 
   /** What the status bar and the menu show, refreshed by refreshStatus(). */
   let state: {
@@ -374,7 +374,7 @@ export function activate(context: vscode.ExtensionContext): void {
     md.supportHtml = true;
     md.isTrusted = {
       enabledCommands: [
-        'kirorelay.refreshUsage',
+        'kirorelay.refreshPanel',
         'kirorelay.manage',
         'kirorelay.diagnose',
         'kirorelay.signIn',
@@ -461,7 +461,7 @@ export function activate(context: vscode.ExtensionContext): void {
     }
 
     const links: PanelLink[] = [
-      { label: vscode.l10n.t('Refresh'), href: 'command:kirorelay.refreshUsage', icon: 'refresh' },
+      { label: vscode.l10n.t('Refresh'), href: 'command:kirorelay.refreshPanel', icon: 'refresh' },
       { label: vscode.l10n.t('Diagnose'), href: 'command:kirorelay.diagnose', icon: 'pulse' },
       { label: vscode.l10n.t('Menu'), href: 'command:kirorelay.manage', icon: 'list-unordered' },
     ];
@@ -487,7 +487,8 @@ export function activate(context: vscode.ExtensionContext): void {
     const left = est.endsAt ? est.endsAt.getTime() - Date.now() : undefined;
     if (left === undefined || left <= 0) {
       const hours = vscode.workspace.getConfiguration('kirorelay').get<number>('auth.sessionHours', 8);
-      return { value: vscode.l10n.t('unknown (up to {0} h after sign-in)', hours), mutedValue: true };
+      // The sign-in happened before Kiro Relay could see it: the end is learned near it, or at the next sign-in.
+      return { value: vscode.l10n.t('not tracked (signed in earlier, up to {0} h)', hours), mutedValue: true };
     }
     const text = vscode.l10n.t('{0} left', formatHoursMinutes(left));
     return { value: est.exact ? text : `≈ ${text} (${vscode.l10n.t('estimate')})` };
@@ -545,6 +546,14 @@ export function activate(context: vscode.ExtensionContext): void {
       vscode.window.showWarningMessage(cannotListModels(e));
     }
   });
+
+  /** Re-reads the token (and session) and the credit usage, without notifications. */
+  async function refreshPanel(): Promise<void> {
+    await refreshStatus(true);
+    await usage.refresh({ force: true });
+    renderStatus();
+  }
+  const refreshPanelCmd = vscode.commands.registerCommand('kirorelay.refreshPanel', refreshPanel);
 
   const refreshUsageCmd = vscode.commands.registerCommand('kirorelay.refreshUsage', async () => {
     const u = await usage.refresh({ force: true });
@@ -648,6 +657,7 @@ export function activate(context: vscode.ExtensionContext): void {
     manage,
     signIn,
     refreshUsageCmd,
+    refreshPanelCmd,
     onConfig,
     { dispose: () => usageTimers.forEach((t) => clearTimeout(t)) },
     { dispose: () => clearInterval(timer) },
