@@ -92,7 +92,9 @@ nextDateReset (epoch s), overageConfiguration{overageStatus}, usageBreakdownList
 currentUsage(WithPrecision), usageLimit(WithPrecision), bonuses[], freeTrialInfo, overageRate, ...}], userInfo}`. **`userInfo`
 identifica o usuário: nunca logar nem guardar.** Regras copiadas do Kiro IDE (`kiro.kiro-agent`): percentual = floor(used/limit·100),
 limite ≥ 999999 = sem limite, bônus listados à parte (free trial `ACTIVE` = "Welcome bonus"; bonuses `ACTIVE`/`EXHAUSTED`).
-Implementado em `src/kiro/usage.ts`; tooltip rico da barra de status + linha no menu; atualiza a cada 5 min e ~10 s após respostas.
+Implementado em `src/kiro/usage.ts`; tooltip rico da barra de status + linha no menu. **Atraso medido: o backend reflete o consumo
+30 a 60 s depois** (8,69 → 8,70 entre +31 s e +62 s após uma requisição de 0,008 crédito); por isso atualiza a cada 5 min e aos 20 s e
+75 s após a última resposta do chat. `currentUsageWithPrecision` tem 2 casas. Percentual: 1 casa abaixo de 10% (arredonda para baixo).
 
 Chat verificado com chamadas reais (2026-10-21, ~0,03 crédito no total):
 - `POST https://runtime.us-east-1.kiro.dev/generateAssistantResponse` com `Content-Type: application/x-amz-json-1.0`,

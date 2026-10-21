@@ -124,11 +124,16 @@ export function activate(context: vscode.ExtensionContext): void {
     log,
     onChange: () => renderStatus(),
   });
-  let usageTimer: ReturnType<typeof setTimeout> | undefined;
-  /** Refreshes usage ~10 s after the last chat response (agent turns come in bursts). */
+  const usageTimers: Array<ReturnType<typeof setTimeout>> = [];
+  /**
+   * Refreshes usage after the last chat response (agent turns come in bursts). Measured on 2026-10-21:
+   * the backend reflects consumption 30 to 60 s later, so refresh at 20 s and again at 75 s.
+   */
   const refreshUsageSoon = () => {
-    clearTimeout(usageTimer);
-    usageTimer = setTimeout(() => void usage.refresh({ force: true }), 10_000);
+    for (const t of usageTimers.splice(0)) clearTimeout(t);
+    for (const delay of [20_000, 75_000]) {
+      usageTimers.push(setTimeout(() => void usage.refresh({ force: true }), delay));
+    }
   };
   const modelsChanged = new vscode.EventEmitter<void>();
   let lastTokenOk: boolean | undefined;
@@ -552,7 +557,7 @@ export function activate(context: vscode.ExtensionContext): void {
     signIn,
     refreshUsageCmd,
     onConfig,
-    { dispose: () => clearTimeout(usageTimer) },
+    { dispose: () => usageTimers.forEach((t) => clearTimeout(t)) },
     { dispose: () => clearInterval(timer) },
     registration,
     modelsChanged,
