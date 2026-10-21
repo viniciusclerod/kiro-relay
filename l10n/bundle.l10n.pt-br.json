@@ -54,6 +54,5 @@
   "estimate": "estimativa",
   "1 interaction": "1 interação",
   "{0} interactions": "{0} interações",
-  "not tracked (signed in earlier, up to {0} h)": "não acompanhada (login anterior, até {0} h)",
-  "{0} / {1} credits used": "{0} / {1} créditos usados"
+  "not tracked (signed in earlier, up to {0} h)": "não acompanhada (login anterior, até {0} h)"
 }

@@ -22,8 +22,12 @@ export interface PanelSection {
   /** Right side of the title row (muted), e.g. "Resets Nov 1". */
   aside?: string;
   asideIcon?: string;
-  /** Big number under the title, e.g. "0.9%" + "used"; `tooltip` shows on mouse-over (e.g. "9.97 / 1,000"). */
-  highlight?: { value: string; caption: string; tooltip?: string };
+  /**
+   * Big number under the title, e.g. "0.9%" + "used", with `detail` right-aligned on the same line
+   * (e.g. "9.97 / 1,000"). Copilot swaps them on mouse-over; extension hovers cannot run scripts or
+   * :hover styles, so both are shown.
+   */
+  highlight?: { value: string; caption: string; detail?: string };
   /** 0..100: thin bar under the highlight. */
   progress?: number;
   rows?: PanelRow[];
@@ -109,10 +113,9 @@ function sectionHtml(s: PanelSection, colors: BarColors): string {
   const aside = s.aside ? muted(`${s.asideIcon ? `${icon(s.asideIcon)} ` : ''}${escapeHtml(s.aside)}`) : '';
   const parts = [`<table width="100%">${row(`<strong>${escapeHtml(s.title)}</strong>`, aside)}</table>`];
   if (s.highlight) {
-    const value = s.highlight.tooltip
-      ? `<span title="${escapeHtml(s.highlight.tooltip)}">${escapeHtml(s.highlight.value)}</span>`
-      : escapeHtml(s.highlight.value);
-    parts.push(`<h3>${value} <small>${muted(escapeHtml(s.highlight.caption))}</small></h3>`);
+    const big = `<h3>${escapeHtml(s.highlight.value)} <small>${muted(escapeHtml(s.highlight.caption))}</small></h3>`;
+    const detail = s.highlight.detail ? muted(escapeHtml(s.highlight.detail)) : '';
+    parts.push(`<table width="100%">${row(big, detail)}</table>`);
   }
   if (s.progress !== undefined) parts.push(`<p>${progressBar(s.progress, colors)}</p>`);
   if (s.rows?.length) {

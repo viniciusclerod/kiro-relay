@@ -421,9 +421,7 @@ export function activate(context: vscode.ExtensionContext): void {
     if (c) {
       const percent = formatPercent(c, lang);
       const rows: PanelRow[] = [];
-      if (c.limit !== undefined) {
-        rows.push({ label: vscode.l10n.t('Used'), value: `${fmtNumber(c.used)} / ${fmtNumber(c.limit)}` });
-      } else {
+      if (c.limit === undefined) {
         rows.push({ label: vscode.l10n.t('Used'), value: vscode.l10n.t('{0} used, no limit', fmtNumber(c.used)) });
       }
       for (const b of u.bonuses) {
@@ -440,7 +438,7 @@ export function activate(context: vscode.ExtensionContext): void {
             : {
                 value: `${percent}%`,
                 caption: vscode.l10n.t('used'),
-                tooltip: c.limit === undefined ? undefined : vscode.l10n.t('{0} / {1} credits used', fmtNumber(c.used), fmtNumber(c.limit)),
+                detail: c.limit === undefined ? undefined : `${fmtNumber(c.used)} / ${fmtNumber(c.limit)}`,
               },
         progress: c.limit === undefined ? undefined : (c.used / c.limit) * 100,
         rows,

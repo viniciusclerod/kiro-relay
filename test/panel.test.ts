@@ -51,9 +51,8 @@ const DATA: PanelData = {
     {
       title: 'Credits',
       aside: 'Resets Nov 1',
-      highlight: { value: '0.9%', caption: 'used' },
+      highlight: { value: '0.9%', caption: 'used', detail: '9.97 / 1,000' },
       progress: 0.9,
-      rows: [{ label: 'Used', value: '9.97 / 1,000' }],
     },
   ],
   links: [
@@ -96,10 +95,11 @@ test('progressBar: SVG image stretched to the panel, proportional, a sliver for 
   assert.ok(!svgOf(progressBar(5, { fill: 'red"/><script>', track: 'x' })).includes('script'));
 });
 
-test('highlight tooltip shows the credits on mouse-over', () => {
+test('highlight: big percentage left, credits right on the same line', () => {
   const html = renderPanel({
     ...DATA,
-    sections: [{ title: 'Credits', highlight: { value: '0.9%', caption: 'used', tooltip: '9.97 / 1,000 credits' } }],
+    sections: [{ title: 'Credits', highlight: { value: '0.9%', caption: 'used', detail: '9.97 / 1,000' } }],
   });
-  assert.match(html, /<span title="9\.97 \/ 1,000 credits">0\.9%<\/span>/);
+  assert.match(html, /<tr><td><h3>0\.9% <small>.*used.*<\/small><\/h3><\/td><td align="right"><span style="[^"]+">9\.97 \/ 1,000<\/span><\/td><\/tr>/);
+  assert.deepEqual(droppedBySanitizer(html), []);
 });
