@@ -96,6 +96,12 @@ Implementado em `src/kiro/usage.ts`; tooltip rico da barra de status + linha no 
 30 a 60 s depois** (8,69 → 8,70 entre +31 s e +62 s após uma requisição de 0,008 crédito); por isso atualiza a cada 5 min e aos 20 s e
 75 s após a última resposta do chat. `currentUsageWithPrecision` tem 2 casas. Percentual: 1 casa abaixo de 10% (arredonda para baixo).
 
+Consumo por interação (decisão do dono, 2026-10-21: no chat + painel): créditos do `meteringEvent` e % de contexto do
+`contextUsageEvent` (tokens ≈ % × `maxInputTokens`; **o Kiro não informa tokens exatos**). Rodapé em itálico ao fim da resposta final
+(sem tool call), somando os passos do modo Agent: a interação é identificada pelo hash das mensagens até a última mensagem de texto do
+usuário (`src/chat/turnUsage.ts`). O rodapé vai entre separadores invisíveis U+2063 e é removido em `fromVsCodeMessages` antes de
+reenviar. O canal "usage" do Chat do VS Code não é API estável para provedores.
+
 Chat verificado com chamadas reais (2026-10-21, ~0,03 crédito no total):
 - `POST https://runtime.us-east-1.kiro.dev/generateAssistantResponse` com `Content-Type: application/x-amz-json-1.0`,
   `x-amz-target: AmazonCodeWhispererStreamingService.GenerateAssistantResponse`, `x-amzn-kiro-agent-mode: vibe`, bearer e
