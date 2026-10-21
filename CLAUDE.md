@@ -69,6 +69,18 @@ O token observado expira em poucos minutos (tempo de vida total ainda **desconhe
 `kiro-cli chat` com uma mensagem curta) e, após cada um, comparar fingerprints (access e refresh) e `expires_at` no diagnóstico. Isso
 revela qual comando renova, o tempo de vida real e se o refresh token rotaciona. Registrar o resultado aqui.
 
+### Resultado do experimento (2026-10-21, kiro-cli 2.33.0, IdC/DeviceCode, em andamento)
+
+- `kiro-cli whoami`, `profile`, `chat --list-models` e `chat --no-interactive` existem. Rodados em sequência às ~04:36 (sem
+  verificação entre eles), **um deles renovou o access token** (fingerprint mudou), mas o `expires_at` ficou igual (+164 ms) e o
+  **refresh token não rotacionou**. Uma gravação anterior (04:31) também manteve o mesmo `expires_at`.
+- Às 04:38, depois do vencimento, `kiro-cli whoami` respondeu "Not logged in" e **o kiro-cli apagou `kirocli:odic:token`** do banco
+  (manteve `device-registration`). Ou seja, o kiro-cli grava no banco ao renovar e ao desistir.
+- Novo `kiro-cli login --use-device-flow` às 04:39:47: `expires_at` = login + **~60 min**; refresh token novo; registro OIDC reaproveitado
+  (`client_secret_expires_at` não muda no login, então não serve para datar o login).
+- Hipótese (não confirmada): **teto de ~1 h por login**; renovações trocam o access token sem estender o prazo. Pode ser a duração de
+  sessão do IdC da organização. Em confirmação: monitorar o banco até depois do vencimento e rodar `whoami` isolado antes dele.
+
 ## Próximas etapas (ordem)
 
 1. Resolver a decisão acima (experimento, implementar A/B/C escolhida, testes).
