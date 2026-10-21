@@ -160,7 +160,9 @@ Tratar como observação, não como contrato; o backend muda sem aviso.
   refazer uma vez sem raciocínio. O VS Code provavelmente não devolve a assinatura, então descartar o raciocínio do histórico.
 - Regras estruturais (senão "Improperly formed request."): conteúdo nunca vazio (placeholder), papéis alternados começando por usuário,
   tool result sempre pareado com a tool call, schemas de tools sem `additionalProperties` e sem `required` vazio, descrição de tool não vazia,
-  nomes ≤ 64 caracteres.
+  nomes ≤ 64 caracteres. **Verificado no F5 (2026-10-21):** o schema de entrada de toda tool precisa ter `type: "object"` no topo; senão o
+  Bedrock responde 400 "toolConfig.tools.N.toolSpec.inputSchema.json.type must be one of the following: object" (algumas tools do modo
+  Agent do VS Code mandam `{}` ou omitem `type`). `toolInputSchema()` em `src/chat/request.ts` normaliza.
 - Resposta: `vnd.amazon.eventstream` binário. Eventos úteis: `assistantResponseEvent`, `reasoningContentEvent`, `toolUseEvent`
   (argumentos em **fragmentos** por `toolUseId` até `stop:true`), `contextUsageEvent`, `meteringEvent`; `metadataEvent` raramente.
 - O backend **não** tem `max_tokens`: aplicar o teto localmente (exceto em tool calls, que devem chegar inteiras).
