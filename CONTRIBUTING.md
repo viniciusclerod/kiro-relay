@@ -10,8 +10,10 @@ text, tool calls and images.
 ## Security principles
 
 - **Read-only and cooperative.** Kiro refresh tokens may be single-use: renewing from outside could
-  invalidate the token kiro-cli keeps and sign it out. That is why the extension **never renews**
-  the token. Close to expiry it re-reads the sources, because kiro-cli may already have renewed it.
+  invalidate the token kiro-cli keeps and sign it out. That is why the extension **never refreshes**
+  the token itself. Close to expiry it re-reads the sources, because kiro-cli may already have
+  renewed it; once it has expired, it runs `kiro-cli whoami` (`kirorelay.auth.renewCommand`), which
+  makes kiro-cli renew its own token, and re-reads. The command's output is never logged.
 - **Database snapshot.** kiro-cli's `data.sqlite3` is copied (together with the `-wal`) to a private
   temporary directory and the copy is opened. The original is never opened, so nothing is created
   or locked next to it. The copy is deleted right afterwards.
@@ -93,7 +95,8 @@ Portuguese language pack if asked) and restart.
 | 2 | `kiro-cli logout`, then **Kiro Relay: Reload Credentials** | `⚠ Kiro: sign-in required`; diagnostics list what was searched and where |
 | 3 | `kiro-cli login --use-device-flow` (in the devcontainer), then **Reload Credentials** | back to `✓` |
 | 4 | Token expired without using kiro-cli | `⚠ Kiro: token expired` |
-| 5 | `kiro-cli whoami` after expiry, then **Reload Credentials** | back to `✓` (kiro-cli renews the token once it has expired) |
+| 5 | Wait until the token expires, without using kiro-cli | within a minute the status bar is back to `✓ Kiro 59 min`; the log shows `renewal: ran "kiro-cli whoami" (exit 0, …)` |
+| 5b | `kirorelay.auth.renewCommand = []`, token expired | `⚠ Kiro: token expired` until you use kiro-cli |
 | 6 | Check that the extension does not touch kiro-cli | list the database directory before/after: no new files; `kiro-cli` stays signed in |
 | 7 | Settings: `kirorelay.auth.sources = ["sso-cache"]` | only the JSON source is used |
 | 8 | Settings: `kirorelay.auth.databasePath` pointing elsewhere | diagnostics show the new candidate |
@@ -140,4 +143,4 @@ test/                   # node:test, runs without VS Code
 ## Next steps
 
 1. Local output cap, retry without reasoning on `THINKING_SIGNATURE_INVALID`, better token counting.
-2. Token renewal through kiro-cli (deferred), icon, publishing (Marketplace + Open VSX).
+2. Icon, publishing (Marketplace + Open VSX).

@@ -3,7 +3,7 @@
 ## 0.0.1 (unreleased)
 
 - Authentication via `kiro-cli`: read-only credential sources (database snapshot and SSO cache),
-  cooperative token provider that never refreshes tokens.
+  cooperative token provider that never refreshes tokens itself.
 - Commands: Diagnose Authentication, Reload Credentials. Status bar indicator.
 - Model provider `kirorelay`: lists the models of your Kiro subscription in the Chat model picker
   (context window, max output, image input, credit multiplier).
@@ -15,3 +15,6 @@
   diagnostics report are always in English.
 - Chat with Kiro models in VS Code Chat: streaming text, tool calling (Agent mode), images, the chosen
   thinking effort, and reasoning display where VS Code supports it.
+- Token renewal: when the token has expired, Kiro Relay runs `kiro-cli whoami` so that `kiro-cli`
+  renews its own token (`kirorelay.auth.renewCommand`). `kirorelay.cli.path` and the new setting
+  can only be set in user settings, not by a workspace.

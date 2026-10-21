@@ -19,9 +19,10 @@ Available in English and Brazilian Portuguese (follows the VS Code display langu
 ## How it works
 
 - Reads the credentials `kiro-cli` stored on your machine, **read-only**.
-- **Never refreshes your token.** Kiro refresh tokens are single-use, so refreshing from outside
-  could sign `kiro-cli` out. When the token is close to expiring, Kiro Relay re-reads the store,
-  because `kiro-cli` may have renewed it. If nobody has, it asks you to use `kiro-cli`.
+- **Never refreshes your token itself.** Kiro refresh tokens may be single-use, so refreshing from
+  outside could sign `kiro-cli` out. When the token has expired, Kiro Relay runs `kiro-cli whoami`,
+  which makes `kiro-cli` renew its own token, and reads it again. If your IAM Identity Center session
+  has ended (it lasts 8 hours by default), run `kiro-cli login` again.
 - Works on a **snapshot** of the `kiro-cli` database, deleted right after reading. Nothing is
   written next to the original files.
 - No telemetry. Tokens are never logged or shown; diagnostics only show field names, dates and a
@@ -46,7 +47,8 @@ The status bar shows the token state (`✓ Kiro 55 min`, expired, or sign-in req
 | `kirorelay.auth.sources` | `["kiro-cli-db", "sso-cache"]` | Credential sources, in priority order |
 | `kirorelay.auth.databasePath` | auto | Path to `kiro-cli`'s `data.sqlite3` |
 | `kirorelay.auth.ssoCachePath` | `~/.aws/sso/cache` | Directory of the SSO cache |
-| `kirorelay.auth.refreshLeewaySeconds` | `300` | Margin before expiry at which a token is treated as expired |
+| `kirorelay.auth.refreshLeewaySeconds` | `300` | Margin before expiry at which the credentials are read again |
+| `kirorelay.auth.renewCommand` | `["whoami"]` | `kiro-cli` arguments run to renew an expired token; `[]` = never run `kiro-cli` |
 | `kirorelay.reasoningEffort` | `{}` | Thinking effort per model, e.g. `{ "claude-opus-5": "xhigh" }`. A choice in the Chat model picker takes precedence |
 
 ## Remote development (Dev Containers, WSL, SSH)

@@ -24,7 +24,7 @@ linguagem** (`vscode.lm.registerLanguageModelChatProvider`) no Chat do VS Code, 
    (8 hex do SHA-256). Os testes usam valores fictícios.
 2. **Somente leitura e cooperativo** com o kiro-cli: nunca escrever no banco do kiro-cli. Os refresh tokens
    do Kiro são **de uso único**: renovar por fora pode invalidar o token do kiro-cli e deslogá-lo.
-   Não implementar refresh próprio sem decisão explícita do dono (ver "Decisão adiada").
+   Não implementar refresh próprio sem decisão explícita do dono (ver "Decisão: como manter o token válido").
 3. Ler o SQLite por **snapshot**: copiar `data.sqlite3` (+ `-wal`, copiado antes) para um tmp `0700`, abrir a
    cópia com `node:sqlite` e apagar em seguida (`src/auth/sqliteSnapshot.ts`).
 
@@ -95,12 +95,15 @@ Chat verificado com chamadas reais (2026-10-21, ~0,03 crédito no total):
 - `additionalModelRequestFields: {reasoning: {effort: "low"}}` aceito (GPT 5.6 Luna). Histórico com `toolUses` e `toolResults`
   pareados, e system prompt dobrado no primeiro turno, aceitos (Qwen3 Coder Next).
 
-## Decisão adiada: como manter o token válido
+## Decisão: como manter o token válido
 
-**Adiada pelo dono em 2026-10-21** ("por hora vamos fazer um skip nessa renovação"): por enquanto vale a opção A (só reler). Retomar
-antes de publicar. Recomendação registrada: **B** com `kiro-cli whoami` sob demanda (o experimento abaixo mostra que funciona), usar o
-token até o vencimento real menos ~30 s (a margem atual de 300 s não combina com B, porque o `whoami` só renova perto do vencimento),
-single-flight, timeout e no máximo uma tentativa por minuto; comando configurável. Opções originais:
+**Decidido pelo dono em 2026-10-21: opção B**, comando configurável (`kirorelay.auth.renewCommand`, padrão `["whoami"]`, `[]` desliga),
+renovação sob demanda **e** pela verificação periódica da barra de status (a cada 60 s). Implementação: `src/auth/renewer.ts`
+(`execFile` sem shell, timeout 20 s, single-flight, no máximo uma execução por minuto, **saída descartada** porque contém o e-mail;
+nunca logar `err.message`, que inclui o stderr) e o gancho `renew` em `KiroCliTokenProvider`: sem token utilizável mas com um token
+vencido/na margem, roda o renovador e relê uma vez; se o kiro-cli não trocou um token que ainda vale mais de 30 s, usa-o mesmo assim
+(o `whoami` só renova perto do vencimento). Sem nenhuma credencial, não roda nada (só `kiro-cli login` resolve). `cli.path` e
+`renewCommand` têm `scope: machine`, para um workspace não poder escolher o executável. Opções originais:
 - **A.** Cooperativo puro (pedir ao usuário que use o kiro-cli). Ruim com token curto.
 - **B.** A extensão executa um comando barato do kiro-cli que renove o token e relê o banco (preferida, mantém dependência exclusiva do CLI).
 - **C.** Refresh próprio via AWS SSO OIDC (`CreateToken`, grant `refresh_token`, com `client_id/secret` do registro) e gravar de volta. Arriscada.
@@ -133,7 +136,7 @@ Medido com o diagnóstico (só fingerprints e datas) e um monitor da data de mod
 
 ## Próximas etapas (ordem)
 
-1. ~~Experimento do token~~ (feito). Implementação da renovação **adiada** (ver "Decisão adiada").
+1. ~~Experimento do token~~ e ~~renovação via kiro-cli (opção B)~~: feitos.
 2. ~~**Spike**~~ (feito: decodificador próprio, ver "Itens não verificados") do cliente `@aws/codewhisperer-streaming-client` (pacote oficial da AWS, v1.0.45 na última checagem; o Kiro IDE parece usar
    esse cliente). Verificar: opção `endpoint`/`token`; se aceita os campos do Kiro (`additionalModelRequestFields`, `reasoningContent`);
    injeção de headers por `middlewareStack`; tamanho no bundle. Se não servir, usar `@smithy/eventstream-codec` + `fetch`.
