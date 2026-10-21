@@ -1,10 +1,15 @@
+import { randomUUID } from 'node:crypto';
 import * as vscode from 'vscode';
 import { runDiagnostics } from './auth/diagnose.ts';
 import { KiroAuthError, NotLoggedInError, TokenExpiredError } from './auth/errors.ts';
 import { createAuth, type AuthConfig, type SourceId } from './auth/factory.ts';
 import { formatHoursMinutes } from './auth/redact.ts';
+import { FirstOutputTimeoutError, streamChat } from './chat/client.ts';
+import { RequestBuildError, buildRequest } from './chat/request.ts';
+import { KiroStreamError } from './chat/response.ts';
+import { fromVsCodeMessages, fromVsCodeTools } from './chat/vscodeMessages.ts';
 import { KiroApiError, ModelCatalog, toChatModelInfo, type ChatModelInfo } from './models/catalog.ts';
-import { resolveEffort, type EffortSource } from './models/effort.ts';
+import { resolveEffort } from './models/effort.ts';
 
 // UI text goes through vscode.l10n.t (English source, translations in l10n/).
 // Logs and the diagnostics report stay in English.
@@ -47,21 +52,22 @@ function describeError(e: unknown): string {
   if (e instanceof KiroAuthError && e.code === 'sqlite-unavailable') {
     return vscode.l10n.t('The node:sqlite module is not available in this VS Code. Use the "sso-cache" source.');
   }
-  if (e instanceof KiroApiError) {
-    return vscode.l10n.t('The Kiro service answered HTTP {0}: {1}', e.status, e.detail);
+  if (e instanceof KiroApiError || e instanceof KiroStreamError) {
+    if (e.reason === 'MONTHLY_REQUEST_COUNT') {
+      return vscode.l10n.t('Your Kiro usage limit for this period has been reached.');
+    }
+    if (e instanceof KiroApiError) {
+      return vscode.l10n.t('The Kiro service answered HTTP {0}: {1}', e.status, e.detail);
+    }
+    return vscode.l10n.t('The Kiro service reported an error: {0}', e.message);
+  }
+  if (e instanceof FirstOutputTimeoutError) {
+    return vscode.l10n.t('Kiro did not start answering in time. Try again.');
+  }
+  if (e instanceof RequestBuildError) {
+    return vscode.l10n.t('The request cannot be sent to Kiro: {0}', e.message);
   }
   return e instanceof Error ? e.message : String(e);
-}
-
-function effortSourceLabel(source: EffortSource): string {
-  switch (source) {
-    case 'picker':
-      return vscode.l10n.t('model picker');
-    case 'setting':
-      return vscode.l10n.t('setting');
-    case 'model-default':
-      return vscode.l10n.t('model default');
-  }
 }
 
 export function activate(context: vscode.ExtensionContext): void {
@@ -74,9 +80,10 @@ export function activate(context: vscode.ExtensionContext): void {
   })();
 
   const version = String(context.extension.packageJSON.version ?? '0.0.0');
+  const userAgent = `kiro-relay/${version} vscode/${vscode.version}`;
   const catalog = new ModelCatalog({
     getToken: (o) => auth.provider.getAccessToken(o),
-    userAgent: `kiro-relay/${version} vscode/${vscode.version}`,
+    userAgent,
     log,
   });
   const modelsChanged = new vscode.EventEmitter<void>();
@@ -105,7 +112,7 @@ export function activate(context: vscode.ExtensionContext): void {
       }
     },
 
-    async provideLanguageModelChatResponse(model, _messages, options) {
+    async provideLanguageModelChatResponse(model, messages, options, progress, token) {
       // modelConfiguration is proposed API (not in @types/vscode); VS Code 1.142 already sends it.
       const modelConfiguration = (options as { modelConfiguration?: Record<string, unknown> })
         .modelConfiguration;
@@ -114,20 +121,63 @@ export function activate(context: vscode.ExtensionContext): void {
         .getConfiguration('kirorelay')
         .get<Record<string, unknown>>('reasoningEffort');
       const effort = resolveEffort(model.id, kiroModel?.effort, modelConfiguration, settings);
+      const chatMessages = fromVsCodeMessages(messages);
+      const tools = fromVsCodeTools(options.tools);
+      const conversationId = randomUUID();
       log(
-        `request: model ${model.id}, effort ${effort.level ?? 'n/a'} (${effort.source}), ` +
-          `fields ${JSON.stringify(effort.requestFields)}`,
+        `chat request: model ${model.id}, effort ${effort.level ?? 'n/a'} (${effort.source}), ` +
+          `${chatMessages.length} messages, ${tools.length} tools`,
       );
-      const effortText = effort.level
-        ? `${effort.level} (${effortSourceLabel(effort.source)})`
-        : vscode.l10n.t('not applicable');
-      throw new Error(
-        vscode.l10n.t(
-          'Kiro Relay: chat is not implemented yet in this version (only the model list). Model {0}, effort {1}.',
-          model.id,
-          effortText,
-        ),
-      );
+
+      // LanguageModelThinkingPart is proposed API; VS Code 1.142 exposes it without a proposal check.
+      const ThinkingPart = (vscode as unknown as {
+        LanguageModelThinkingPart?: new (value: string) => vscode.LanguageModelResponsePart;
+      }).LanguageModelThinkingPart;
+
+      const abort = new AbortController();
+      const cancel = token.onCancellationRequested(() => abort.abort());
+      const started = Date.now();
+      try {
+        for await (const event of streamChat({
+          getToken: (o) => auth.provider.getAccessToken(o),
+          buildBody: (t) =>
+            buildRequest({
+              modelId: model.id,
+              messages: chatMessages,
+              tools,
+              profileArn: t.profileArn,
+              requestFields: effort.requestFields,
+              conversationId,
+            }),
+          userAgent,
+          signal: abort.signal,
+          log,
+        })) {
+          switch (event.type) {
+            case 'text':
+              progress.report(new vscode.LanguageModelTextPart(event.text));
+              break;
+            case 'reasoning':
+              if (ThinkingPart) progress.report(new ThinkingPart(event.text));
+              break;
+            case 'toolCall':
+              progress.report(new vscode.LanguageModelToolCallPart(event.id, event.name, event.input));
+              break;
+            case 'end':
+              log(
+                `chat done: ${event.stopReason ?? 'no stop reason'}, ` +
+                  `${event.credits?.toFixed(4) ?? '?'} credits, ${Date.now() - started} ms`,
+              );
+              break;
+          }
+        }
+        if (token.isCancellationRequested) log('chat cancelled');
+      } catch (e) {
+        log(`chat failed: ${e instanceof Error ? e.message : String(e)}`);
+        throw new Error(describeError(e));
+      } finally {
+        cancel.dispose();
+      }
     },
 
     async provideTokenCount(_model, text) {
