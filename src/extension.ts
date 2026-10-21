@@ -173,7 +173,15 @@ export function activate(context: vscode.ExtensionContext): void {
         }
         if (token.isCancellationRequested) log('chat cancelled');
       } catch (e) {
-        log(`chat failed: ${e instanceof Error ? e.message : String(e)}`);
+        const message = e instanceof Error ? e.message : String(e);
+        log(`chat failed: ${message}`);
+        // Validation errors name the tool by index (e.g. "toolConfig.tools.46..."): log which one it is.
+        const index = /tools\.(\d+)\./.exec(message)?.[1];
+        const tool = index === undefined ? undefined : tools[Number(index)];
+        if (tool) {
+          const schema = tool.inputSchema as { type?: unknown } | undefined;
+          log(`  tool #${index} is "${tool.name}" (input schema type: ${JSON.stringify(schema?.type)})`);
+        }
         throw new Error(describeError(e));
       } finally {
         cancel.dispose();

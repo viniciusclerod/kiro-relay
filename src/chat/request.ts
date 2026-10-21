@@ -103,6 +103,20 @@ export function sanitizeSchema(schema: unknown): unknown {
   return out;
 }
 
+/**
+ * Tool input schema as the backend requires it: sanitized, with `type: "object"` at the top
+ * (Bedrock rejects anything else, e.g. VS Code tools that declare `{}` or omit `type`).
+ */
+export function toolInputSchema(schema: unknown): Record<string, unknown> {
+  const s = sanitizeSchema(schema);
+  if (typeof s !== 'object' || s === null || Array.isArray(s)) return { type: 'object', properties: {} };
+  const obj = s as Record<string, unknown>;
+  if (obj.type === 'object') return obj;
+  if (obj.type === undefined) return { ...obj, type: 'object', properties: obj.properties ?? {} };
+  // A non-object top level cannot be expressed as tool input: accept anything.
+  return { type: 'object', properties: {} };
+}
+
 /** Converts neutral messages into alternating user/assistant turns that satisfy the backend rules. */
 export function toTurns(messages: ChatMessage[], toolsDeclared: boolean): { system: string; turns: Turn[] } {
   let system = '';
@@ -197,7 +211,7 @@ export function buildRequest(opts: BuildOptions): Record<string, unknown> {
       toolSpecification: {
         name: t.name,
         description: t.description.trim() || `Tool: ${t.name}`,
-        inputSchema: { json: sanitizeSchema(t.inputSchema ?? {}) ?? {} },
+        inputSchema: { json: toolInputSchema(t.inputSchema) },
       },
     };
   });

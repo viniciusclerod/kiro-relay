@@ -5,6 +5,7 @@ import {
   RequestBuildError,
   buildRequest,
   sanitizeSchema,
+  toolInputSchema,
   type ChatMessage,
 } from '../src/chat/request.ts';
 
@@ -186,4 +187,16 @@ test('sanitizeSchema keeps non-empty required and nested arrays', () => {
     { anyOf: [{ type: 'string' }, {}], required: ['a'] },
   );
   assert.equal(sanitizeSchema(null), null);
+});
+
+test('toolInputSchema always has type "object" at the top (Bedrock rejects anything else)', () => {
+  assert.deepEqual(toolInputSchema(undefined), { type: 'object', properties: {} });
+  assert.deepEqual(toolInputSchema({}), { type: 'object', properties: {} });
+  assert.deepEqual(toolInputSchema({ properties: { a: { type: 'string' } } }), {
+    type: 'object',
+    properties: { a: { type: 'string' } },
+  });
+  assert.deepEqual(toolInputSchema({ type: 'string' }), { type: 'object', properties: {} });
+  assert.deepEqual(toolInputSchema([1]), { type: 'object', properties: {} });
+  assert.deepEqual(toolInputSchema({ type: 'object', additionalProperties: false }), { type: 'object' });
 });
