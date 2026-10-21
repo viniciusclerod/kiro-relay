@@ -2,6 +2,7 @@
 // Formato observado em 2026-10-21 no host management.{region}.kiro.dev; NÃO é contrato oficial.
 
 import type { AccessToken } from '../auth/tokenProvider.ts';
+import { effortConfigurationSchema, parseEffortSupport, type EffortSupport } from './effort.ts';
 
 /** Teto de páginas, igual ao do Kiro IDE segundo o kirogo. */
 export const MAX_PAGES = 10;
@@ -21,6 +22,7 @@ export interface KiroModel {
   supportsImages: boolean;
   /** JSON Schema de additionalModelRequestFields (esforço de raciocínio etc.). */
   requestFieldsSchema?: Record<string, unknown>;
+  effort?: EffortSupport;
 }
 
 export interface ModelList {
@@ -82,6 +84,7 @@ export function parseModel(raw: unknown): KiroModel | undefined {
     maxOutputTokens: num(limits?.maxOutputTokens) ?? DEFAULT_MAX_OUTPUT_TOKENS,
     supportsImages: inputs.includes('IMAGE'),
     requestFieldsSchema: obj(m.additionalModelRequestFieldsSchema),
+    effort: parseEffortSupport(obj(m.additionalModelRequestFieldsSchema)),
   };
 }
 
@@ -154,6 +157,12 @@ export interface ChatModelInfo {
   maxInputTokens: number;
   maxOutputTokens: number;
   capabilities: { imageInput: boolean; toolCalling: boolean };
+  /**
+   * API PROPOSTA (ausente do @types/vscode 1.140): o VS Code 1.142 aceita este campo sem exigir
+   * enabledApiProposals e mostra as opções no seletor de modelos. Se deixar de funcionar, vale a
+   * setting kirorelay.reasoningEffort.
+   */
+  configurationSchema?: Record<string, unknown>;
 }
 
 function formatRate(m: KiroModel): string | undefined {
@@ -177,6 +186,7 @@ export function toChatModelInfo(m: KiroModel, defaultModelId?: string): ChatMode
     maxInputTokens: m.maxInputTokens,
     maxOutputTokens: m.maxOutputTokens,
     capabilities: { imageInput: m.supportsImages, toolCalling: true },
+    ...(m.effort ? { configurationSchema: effortConfigurationSchema(m.effort) } : {}),
   };
 }
 

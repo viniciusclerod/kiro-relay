@@ -4,6 +4,7 @@ import { KiroAuthError, NotLoggedInError, TokenExpiredError } from './auth/error
 import { createAuth, type AuthConfig, type SourceId } from './auth/factory.ts';
 import { formatDuration } from './auth/redact.ts';
 import { ModelCatalog, toChatModelInfo, type ChatModelInfo } from './models/catalog.ts';
+import { resolveEffort } from './models/effort.ts';
 
 /** Estimativa grosseira (~4 caracteres por token); o Kiro não expõe tokenizador. */
 function estimateTokens(input: string | vscode.LanguageModelChatRequestMessage): number {
@@ -68,9 +69,20 @@ export function activate(context: vscode.ExtensionContext): void {
       }
     },
 
-    async provideLanguageModelChatResponse() {
+    async provideLanguageModelChatResponse(model, _messages, options) {
+      // modelConfiguration é API proposta (não está no @types/vscode); o VS Code 1.142 já envia.
+      const modelConfiguration = (options as { modelConfiguration?: Record<string, unknown> })
+        .modelConfiguration;
+      const kiroModel = (await catalog.get()).models.find((m) => m.id === model.id);
+      const settings = vscode.workspace
+        .getConfiguration('kirorelay')
+        .get<Record<string, unknown>>('reasoningEffort');
+      const effort = resolveEffort(model.id, kiroModel?.effort, modelConfiguration, settings);
+      const effortText = effort.level ? `${effort.level} (${effort.source})` : 'não se aplica';
+      log(`pedido: modelo ${model.id}, esforço ${effortText}, campos ${JSON.stringify(effort.requestFields)}`);
       throw new Error(
-        'Kiro Relay: o chat ainda não foi implementado nesta versão (só a listagem de modelos).',
+        `Kiro Relay: o chat ainda não foi implementado nesta versão (só a listagem de modelos). ` +
+          `Modelo ${model.id}, esforço ${effortText}.`,
       );
     },
 

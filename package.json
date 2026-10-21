@@ -98,6 +98,22 @@
           "default": 300,
           "minimum": 0,
           "description": "Margem antes do vencimento em que o token deixa de ser considerado válido."
+        },
+        "kirorelay.reasoningEffort": {
+          "type": "object",
+          "default": {},
+          "additionalProperties": {
+            "type": "string",
+            "enum": [
+              "none",
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ]
+          },
+          "markdownDescription": "Esforço de raciocínio por modelo, por exemplo `{ \"claude-opus-5\": \"xhigh\" }`. Uma escolha no seletor de modelos do Chat tem prioridade. Níveis que o modelo não aceita são ignorados."
         }
       }
     },
