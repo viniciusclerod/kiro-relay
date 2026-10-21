@@ -63,6 +63,11 @@
         "command": "kirorelay.signIn",
         "title": "%command.signIn.title%",
         "category": "Kiro Relay"
+      },
+      {
+        "command": "kirorelay.refreshUsage",
+        "title": "%command.refreshUsage.title%",
+        "category": "Kiro Relay"
       }
     ],
     "icons": {

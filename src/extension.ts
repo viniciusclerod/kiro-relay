@@ -8,6 +8,7 @@ import { FirstOutputTimeoutError, streamChat } from './chat/client.ts';
 import { RequestBuildError, buildRequest } from './chat/request.ts';
 import { KiroStreamError } from './chat/response.ts';
 import { fromVsCodeMessages, fromVsCodeTools } from './chat/vscodeMessages.ts';
+import { UsageTracker, creditItem, progressBar, type UsageSummary } from './kiro/usage.ts';
 import { KiroApiError, ModelCatalog, toChatModelInfo, type ChatModelInfo } from './models/catalog.ts';
 import { resolveEffort } from './models/effort.ts';
 
@@ -112,6 +113,18 @@ export function activate(context: vscode.ExtensionContext): void {
     userAgent,
     log,
   });
+  const usage = new UsageTracker({
+    getToken: () => auth.provider.getAccessToken(),
+    userAgent,
+    log,
+    onChange: () => renderStatus(),
+  });
+  let usageTimer: ReturnType<typeof setTimeout> | undefined;
+  /** Refreshes usage ~10 s after the last chat response (agent turns come in bursts). */
+  const refreshUsageSoon = () => {
+    clearTimeout(usageTimer);
+    usageTimer = setTimeout(() => void usage.refresh({ force: true }), 10_000);
+  };
   const modelsChanged = new vscode.EventEmitter<void>();
   let lastTokenOk: boolean | undefined;
 
@@ -212,6 +225,7 @@ export function activate(context: vscode.ExtensionContext): void {
               progress.report(new vscode.LanguageModelToolCallPart(event.id, event.name, event.input));
               break;
             case 'end':
+              refreshUsageSoon();
               log(
                 `chat done: ${event.stopReason ?? 'no stop reason'}, ` +
                   `${event.credits?.toFixed(4) ?? '?'} credits, ${Date.now() - started} ms`,
@@ -246,43 +260,108 @@ export function activate(context: vscode.ExtensionContext): void {
   status.command = 'kirorelay.manage';
 
   /** What the status bar and the menu show, refreshed by refreshStatus(). */
-  let state: { kind: 'ok' | 'expired' | 'signed-out' | 'error'; summary: string; detail?: string } = {
+  let state: {
+    kind: 'ok' | 'expired' | 'signed-out' | 'error';
+    summary: string;
+    detail?: string;
+    remaining?: string;
+  } = {
     kind: 'error',
     summary: vscode.l10n.t('Checking kiro-cli credentials…'),
   };
 
   async function refreshStatus(forceReload = false): Promise<void> {
-    const icon = `$(${KIRO_ICON_ID})`;
     try {
       const t = await auth.provider.getAccessToken({ forceReload });
-      const remaining = formatHoursMinutes(t.expiresAt.getTime() - Date.now());
       state = {
         kind: 'ok',
-        summary: vscode.l10n.t('Signed in, token valid for {0}', remaining),
+        summary: vscode.l10n.t('Signed in, token valid for {0}', formatHoursMinutes(t.expiresAt.getTime() - Date.now())),
         detail: [t.source, t.region].filter(Boolean).join(' · '),
+        remaining: formatHoursMinutes(t.expiresAt.getTime() - Date.now()),
       };
-      status.text = `${icon} ${remaining}`;
-      status.backgroundColor = undefined;
       if (lastTokenOk === false) modelsChanged.fire();
       lastTokenOk = true;
+      void usage.refresh();
     } catch (e) {
       lastTokenOk = false;
-      const warn = new vscode.ThemeColor('statusBarItem.warningBackground');
       if (e instanceof TokenExpiredError) {
         state = { kind: 'expired', summary: vscode.l10n.t('Kiro: token expired'), detail: describeError(e) };
-        status.backgroundColor = warn;
       } else if (e instanceof NotLoggedInError) {
         state = { kind: 'signed-out', summary: vscode.l10n.t('Kiro: sign-in required'), detail: describeError(e) };
-        status.backgroundColor = warn;
       } else {
         state = { kind: 'error', summary: vscode.l10n.t('Kiro: error'), detail: describeError(e) };
-        status.backgroundColor = new vscode.ThemeColor('statusBarItem.errorBackground');
       }
-      status.text = `${icon} ${state.kind === 'error' ? '$(error)' : '$(warning)'}`;
     }
-    status.tooltip = [state.summary, state.detail, vscode.l10n.t('Click for Kiro Relay options.')]
-      .filter(Boolean)
-      .join('\n');
+    renderStatus();
+  }
+
+  const lang = vscode.env.language;
+  const fmtNumber = (n: number) => n.toLocaleString(lang, { maximumFractionDigits: 2 });
+  const fmtReset = (d: Date) =>
+    d.toLocaleString(lang, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+
+  /** One line about credits, for the menu (plain text). */
+  function creditsLine(u: UsageSummary | undefined): string | undefined {
+    const c = u && creditItem(u);
+    if (!c) return undefined;
+    const amount = c.limit === undefined ? fmtNumber(c.used) : `${fmtNumber(c.used)} / ${fmtNumber(c.limit)}`;
+    const pct = c.percentUsed === undefined ? '' : ` (${vscode.l10n.t('{0}% used', c.percentUsed)})`;
+    return `${c.name}: ${amount}${pct}`;
+  }
+
+  /** Copilot-style hover: plan, credits with a progress bar, reset date, bonuses, token state, actions. */
+  function usageTooltip(): vscode.MarkdownString {
+    const md = new vscode.MarkdownString(undefined, true);
+    md.isTrusted = { enabledCommands: ['kirorelay.refreshUsage', 'kirorelay.manage', 'kirorelay.diagnose', 'kirorelay.signIn'] };
+    const u = usage.current;
+    md.appendMarkdown(`**Kiro Relay**${u?.plan ? ` · ${u.plan}` : ''}\n\n`);
+    const c = u && creditItem(u);
+    if (c) {
+      const reset = u.resetsAt ? ` — ${vscode.l10n.t('Resets {0}', fmtReset(u.resetsAt))}` : '';
+      md.appendMarkdown(`**${c.name}**${reset}\n\n`);
+      if (c.limit !== undefined && c.percentUsed !== undefined) {
+        md.appendMarkdown(
+          `\`${progressBar(c.percentUsed)}\` **${vscode.l10n.t('{0}% used', c.percentUsed)}** · ` +
+            `${fmtNumber(c.used)} / ${fmtNumber(c.limit)}\n\n`,
+        );
+      } else {
+        md.appendMarkdown(`${vscode.l10n.t('{0} used, no limit', fmtNumber(c.used))}\n\n`);
+      }
+      for (const b of u.bonuses) {
+        const expires = b.expiresAt ? ` · ${vscode.l10n.t('expires {0}', b.expiresAt.toLocaleDateString(lang))}` : '';
+        md.appendMarkdown(`$(gift) ${b.name}: ${fmtNumber(b.used)} / ${fmtNumber(b.total)}${expires}\n\n`);
+      }
+      if (u.overagesEnabled) md.appendMarkdown(`$(info) ${vscode.l10n.t('Overages are enabled for this plan.')}\n\n`);
+    } else if (usage.lastError) {
+      md.appendMarkdown(`$(warning) ${vscode.l10n.t('Credit usage unavailable.')}\n\n`);
+    }
+    const stateIcon = state.kind === 'ok' ? KIRO_ICON_ID : state.kind === 'error' ? 'error' : 'warning';
+    md.appendMarkdown(`$(${stateIcon}) ${state.summary}${state.kind === 'ok' && state.detail ? ` · ${state.detail}` : ''}\n\n`);
+    if (state.kind !== 'ok' && state.detail) md.appendText(`${state.detail}\n\n`);
+    const links = [
+      `[$(refresh) ${vscode.l10n.t('Refresh')}](command:kirorelay.refreshUsage)`,
+      `[$(list-unordered) ${vscode.l10n.t('Menu')}](command:kirorelay.manage)`,
+      `[$(pulse) ${vscode.l10n.t('Diagnose')}](command:kirorelay.diagnose)`,
+    ];
+    if (state.kind === 'signed-out' || state.kind === 'expired') {
+      links.unshift(`[$(sign-in) ${vscode.l10n.t('Sign in with kiro-cli')}](command:kirorelay.signIn)`);
+    }
+    md.appendMarkdown(links.join(' &nbsp;·&nbsp; '));
+    return md;
+  }
+
+  function renderStatus(): void {
+    const icon = `$(${KIRO_ICON_ID})`;
+    if (state.kind === 'ok') {
+      status.text = `${icon} ${state.remaining ?? ''}`.trim();
+      status.backgroundColor = undefined;
+    } else {
+      status.text = `${icon} ${state.kind === 'error' ? '$(error)' : '$(warning)'}`;
+      status.backgroundColor = new vscode.ThemeColor(
+        state.kind === 'error' ? 'statusBarItem.errorBackground' : 'statusBarItem.warningBackground',
+      );
+    }
+    status.tooltip = usageTooltip();
     status.show();
   }
 
@@ -324,6 +403,16 @@ export function activate(context: vscode.ExtensionContext): void {
     }
   });
 
+  const refreshUsageCmd = vscode.commands.registerCommand('kirorelay.refreshUsage', async () => {
+    const u = await usage.refresh({ force: true });
+    renderStatus();
+    if (!u) {
+      void vscode.window.showWarningMessage(vscode.l10n.t('Credit usage unavailable.'));
+    } else if (creditsLine(u)) {
+      void vscode.window.showInformationMessage(`Kiro: ${creditsLine(u)}`);
+    }
+  });
+
   const signIn = vscode.commands.registerCommand('kirorelay.signIn', () => {
     // In remote windows (devcontainer, SSH, WSL) there is no browser next to kiro-cli: use the device code flow.
     const args = vscode.env.remoteName ? ' login --use-device-flow' : ' login';
@@ -341,12 +430,16 @@ export function activate(context: vscode.ExtensionContext): void {
     const stateIcon = state.kind === 'ok' ? KIRO_ICON_ID : state.kind === 'error' ? 'error' : 'warning';
     const items: Item[] = [
       { label: `$(${stateIcon}) ${state.summary}`, detail: state.detail },
+      ...(creditsLine(usage.current)
+        ? [{ label: `$(credit-card) ${creditsLine(usage.current)}`, detail: usage.current?.plan } as Item]
+        : []),
       { label: '', kind: vscode.QuickPickItemKind.Separator },
     ];
     if (state.kind === 'signed-out' || state.kind === 'expired') {
       items.push(action('sign-in', vscode.l10n.t('Sign in with kiro-cli'), () => vscode.commands.executeCommand('kirorelay.signIn')));
     }
     items.push(
+      action('credit-card', vscode.l10n.t('Refresh credit usage'), () => vscode.commands.executeCommand('kirorelay.refreshUsage')),
       action('refresh', vscode.l10n.t('Refresh model list'), () => vscode.commands.executeCommand('kirorelay.refreshModels')),
       action('key', vscode.l10n.t('Reload kiro-cli credentials'), () => vscode.commands.executeCommand('kirorelay.reloadCredentials')),
       action('pulse', vscode.l10n.t('Diagnose authentication'), () => vscode.commands.executeCommand('kirorelay.diagnose')),
@@ -387,7 +480,9 @@ export function activate(context: vscode.ExtensionContext): void {
     refreshModelsCmd,
     manage,
     signIn,
+    refreshUsageCmd,
     onConfig,
+    { dispose: () => clearTimeout(usageTimer) },
     { dispose: () => clearInterval(timer) },
     registration,
     modelsChanged,
