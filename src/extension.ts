@@ -401,7 +401,7 @@ export function activate(context: vscode.ExtensionContext): void {
       n > 0
         ? `<span style="background-color:var(${color});display:inline-block;border-radius:2px;">${'&nbsp;'.repeat(n)}</span>`
         : '';
-    return `<small>${span('--vscode-progressBar-background', filled)}${span('--vscode-editorWidget-border', width - filled)}</small>`;
+    return `<small>${span('--vscode-progressBar-background', filled)}${span('--vscode-scrollbarSlider-background', width - filled)}</small>`;
   }
 
   /**
@@ -429,6 +429,29 @@ export function activate(context: vscode.ExtensionContext): void {
     const settingsArg = encodeURIComponent(JSON.stringify([`@ext:${context.extension.id}`]));
     const gear = `[$(settings-gear)](command:workbench.action.openSettings?${settingsArg} "${vscode.l10n.t('Open settings')}")`;
     const title = u?.plan ? `Kiro ${planName(u.plan).replace(/^Kiro\s+/i, '')}` : 'Kiro Relay';
+
+    const stateIcon = state.kind === 'ok' ? KIRO_ICON_ID : state.kind === 'error' ? 'error' : 'warning';
+    if (state.kind === 'ok') {
+      section(vscode.l10n.t('Account'), `$(${stateIcon}) ${muted(vscode.l10n.t('Signed in'))}`);
+      row(muted(vscode.l10n.t('Token')), vscode.l10n.t('{0} left', state.remaining ?? '?'));
+      row(muted(vscode.l10n.t('Kiro session')), sessionText());
+      if (state.login) {
+        const [kind, url, region] = state.login.split(' · ');
+        let host: string | undefined;
+        try {
+          host = url ? new URL(url).hostname : undefined;
+        } catch {
+          host = undefined;
+        }
+        if (url) {
+          const where = host ? `[${cell(host)}](${encodeURI(url)})` : cell(url);
+          row(muted(kind ?? ''), `${where}${region ? muted(` · ${region}`) : ''}`);
+        }
+      }
+    } else {
+      section(vscode.l10n.t('Account'), `$(${stateIcon}) ${cell(state.summary)}`);
+      if (state.detail) row(muted(state.detail), '');
+    }
 
     const c = u && creditItem(u);
     if (c) {
@@ -463,31 +486,10 @@ export function activate(context: vscode.ExtensionContext): void {
       const sess = turnUsage.session;
       row(
         muted(vscode.l10n.t('This session')),
-        `${vscode.l10n.t('{0} credits', fmtNumber(sess.credits))}${muted(` · ${sess.interactions}×`)}`,
+        `${vscode.l10n.t('{0} credits', fmtNumber(sess.credits))}${muted(
+          ` · ${sess.interactions === 1 ? vscode.l10n.t('1 interaction') : vscode.l10n.t('{0} interactions', sess.interactions)}`,
+        )}`,
       );
-    }
-
-    const stateIcon = state.kind === 'ok' ? KIRO_ICON_ID : state.kind === 'error' ? 'error' : 'warning';
-    if (state.kind === 'ok') {
-      section(vscode.l10n.t('Account'), `$(${stateIcon}) ${muted(vscode.l10n.t('Signed in'))}`);
-      row(muted(vscode.l10n.t('Token')), vscode.l10n.t('{0} left', state.remaining ?? '?'));
-      row(muted(vscode.l10n.t('Kiro session')), sessionText());
-      if (state.login) {
-        const [kind, url, region] = state.login.split(' · ');
-        let host: string | undefined;
-        try {
-          host = url ? new URL(url).hostname : undefined;
-        } catch {
-          host = undefined;
-        }
-        if (url) {
-          const where = host ? `[${cell(host)}](${encodeURI(url)})` : cell(url);
-          row(muted(kind ?? ''), `${where}${region ? muted(` · ${region}`) : ''}`);
-        }
-      }
-    } else {
-      section(vscode.l10n.t('Account'), `$(${stateIcon}) ${cell(state.summary)}`);
-      if (state.detail) row(muted(state.detail), '');
     }
 
     const links = [

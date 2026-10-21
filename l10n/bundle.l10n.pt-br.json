@@ -55,5 +55,7 @@
   "Kiro session": "Sessão do Kiro",
   "{0} left": "restam {0}",
   "unknown (up to {0} h after sign-in)": "desconhecida (até {0} h após o login)",
-  "estimate": "estimativa"
+  "estimate": "estimativa",
+  "1 interaction": "1 interação",
+  "{0} interactions": "{0} interações"
 }
