@@ -1,0 +1,110 @@
+{
+  "name": "kiro-relay",
+  "displayName": "Kiro Relay: Kiro CLI Models for Chat",
+  "description": "Use the models from your Kiro subscription in VS Code Chat, authenticated through kiro-cli. Unofficial; not affiliated with AWS or Kiro.",
+  "version": "0.0.1",
+  "publisher": "viniciusclerod",
+  "license": "MIT",
+  "preview": true,
+  "private": true,
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/viniciusclerod/kiro-relay.git"
+  },
+  "bugs": {
+    "url": "https://github.com/viniciusclerod/kiro-relay/issues"
+  },
+  "homepage": "https://github.com/viniciusclerod/kiro-relay#readme",
+  "engines": {
+    "vscode": "^1.104.0",
+    "node": ">=22.18"
+  },
+  "categories": [
+    "AI",
+    "Chat"
+  ],
+  "keywords": [
+    "language-models",
+    "kiro",
+    "kiro-cli",
+    "chat",
+    "model-provider",
+    "copilot-chat",
+    "byok",
+    "aws"
+  ],
+  "main": "./dist/extension.js",
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "kirorelay.diagnose",
+        "title": "Diagnose Authentication",
+        "category": "Kiro Relay"
+      },
+      {
+        "command": "kirorelay.reloadCredentials",
+        "title": "Reload Credentials",
+        "category": "Kiro Relay"
+      }
+    ],
+    "configuration": {
+      "title": "Kiro Relay",
+      "properties": {
+        "kirorelay.cli.path": {
+          "type": "string",
+          "default": "kiro-cli",
+          "description": "Caminho do executável do kiro-cli (usado apenas no diagnóstico por enquanto)."
+        },
+        "kirorelay.auth.sources": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "kiro-cli-db",
+              "sso-cache"
+            ]
+          },
+          "default": [
+            "kiro-cli-db",
+            "sso-cache"
+          ],
+          "description": "Fontes de credenciais, em ordem de prioridade. 'kiro-cli-db' = banco SQLite do kiro-cli; 'sso-cache' = ~/.aws/sso/cache/kiro-auth-token.json."
+        },
+        "kirorelay.auth.databasePath": {
+          "type": "string",
+          "default": "",
+          "description": "Caminho do data.sqlite3 do kiro-cli. Vazio = auto-detectar."
+        },
+        "kirorelay.auth.ssoCachePath": {
+          "type": "string",
+          "default": "",
+          "description": "Diretório do cache SSO. Vazio = ~/.aws/sso/cache."
+        },
+        "kirorelay.auth.refreshLeewaySeconds": {
+          "type": "number",
+          "default": 300,
+          "minimum": 0,
+          "description": "Margem antes do vencimento em que o token deixa de ser considerado válido."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "build": "node esbuild.mjs",
+    "watch": "node esbuild.mjs --watch",
+    "typecheck": "tsc --noEmit",
+    "test": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --disable-warning=ExperimentalWarning --test \"test/**/*.test.ts\"",
+    "package": "vsce package",
+    "check-name": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/check-name.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "@types/vscode": "^1.104.0",
+    "@vscode/vsce": "^3.0.0",
+    "esbuild": "^0.25.0",
+    "typescript": "^5.8.0"
+  }
+}
