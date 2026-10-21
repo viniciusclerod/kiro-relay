@@ -48,6 +48,16 @@
         "command": "kirorelay.reloadCredentials",
         "title": "Reload Credentials",
         "category": "Kiro Relay"
+      },
+      {
+        "command": "kirorelay.refreshModels",
+        "title": "Refresh Models",
+        "category": "Kiro Relay"
+      },
+      {
+        "command": "kirorelay.manage",
+        "title": "Manage",
+        "category": "Kiro Relay"
       }
     ],
     "configuration": {
@@ -90,7 +100,14 @@
           "description": "Margem antes do vencimento em que o token deixa de ser considerado válido."
         }
       }
-    }
+    },
+    "languageModelChatProviders": [
+      {
+        "vendor": "kirorelay",
+        "displayName": "Kiro",
+        "managementCommand": "kirorelay.manage"
+      }
+    ]
   },
   "scripts": {
     "build": "node esbuild.mjs",
