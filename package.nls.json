@@ -14,5 +14,15 @@
   "config.auth.renewCommand.description": "kiro-cli arguments the extension runs to have kiro-cli renew an expired token (default: whoami). Empty list = never run kiro-cli; you renew it yourself by using kiro-cli.",
   "icon.kiro.description": "Kiro logo",
   "command.signIn.title": "Sign In with kiro-cli",
-  "command.refreshUsage.title": "Refresh Credit Usage"
+  "command.refreshUsage.title": "Refresh Credit Usage",
+  "config.login.license.description": "Account type used by **Kiro Relay: Sign In with kiro-cli** (`kiro-cli login --license`).",
+  "config.login.license.ask": "Let kiro-cli ask.",
+  "config.login.license.pro": "IAM Identity Center (organization, Kiro Pro).",
+  "config.login.license.free": "Builder ID, Google or GitHub.",
+  "config.login.startUrl.description": "IAM Identity Center start URL, e.g. `https://example.awsapps.com/start` (`kiro-cli login --identity-provider`). Empty = kiro-cli asks.",
+  "config.login.region.description": "IAM Identity Center region, e.g. `us-east-1` (`kiro-cli login --region`). Empty = kiro-cli asks.",
+  "config.login.deviceFlow.description": "Use the device code flow (`--use-device-flow`): sign in from a browser on any machine with a code.",
+  "config.login.deviceFlow.auto": "Only in remote windows (Dev Containers, SSH, WSL), where there is no browser next to kiro-cli.",
+  "config.login.deviceFlow.always": "Always.",
+  "config.login.deviceFlow.never": "Never."
 }

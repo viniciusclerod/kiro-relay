@@ -33,5 +33,7 @@
   "Credit usage unavailable.": "Uso de créditos indisponível.",
   "Refresh": "Atualizar",
   "Menu": "Menu",
-  "Refresh credit usage": "Atualizar uso de créditos"
+  "Refresh credit usage": "Atualizar uso de créditos",
+  "Invalid setting {0}: {1}": "Configuração inválida {0}: {1}",
+  "IAM Identity Center": "IAM Identity Center"
 }

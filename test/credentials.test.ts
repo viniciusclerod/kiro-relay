@@ -69,3 +69,11 @@ test('regionFromArn and extractProfileArn', () => {
   assert.equal(extractProfileArn(JSON.stringify({ profile_arn: arn })), arn);
   assert.equal(extractProfileArn('{"x":1}'), undefined);
 });
+
+test('parseTokenRecord keeps the start URL (not a secret)', () => {
+  const c = parseTokenRecord(
+    JSON.stringify({ access_token: 'AT', expires_at: '2026-10-20T10:00:00Z', start_url: 'https://example.awsapps.com/start' }),
+    'x',
+  );
+  assert.equal(c.startUrl, 'https://example.awsapps.com/start');
+});

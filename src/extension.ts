@@ -3,6 +3,7 @@ import * as vscode from 'vscode';
 import { runDiagnostics } from './auth/diagnose.ts';
 import { KiroAuthError, NotLoggedInError, TokenExpiredError } from './auth/errors.ts';
 import { createAuth, type AuthConfig, type SourceId } from './auth/factory.ts';
+import { LoginSettingsError, buildLoginArgs, type LoginSettings } from './auth/login.ts';
 import { formatHoursMinutes } from './auth/redact.ts';
 import { FirstOutputTimeoutError, streamChat } from './chat/client.ts';
 import { RequestBuildError, buildRequest } from './chat/request.ts';
@@ -265,6 +266,8 @@ export function activate(context: vscode.ExtensionContext): void {
     summary: string;
     detail?: string;
     remaining?: string;
+    /** e.g. "IAM Identity Center · https://example.awsapps.com/start · us-east-1" (no secrets). */
+    login?: string;
   } = {
     kind: 'error',
     summary: vscode.l10n.t('Checking kiro-cli credentials…'),
@@ -278,6 +281,9 @@ export function activate(context: vscode.ExtensionContext): void {
         summary: vscode.l10n.t('Signed in, token valid for {0}', formatHoursMinutes(t.expiresAt.getTime() - Date.now())),
         detail: [t.source, t.region].filter(Boolean).join(' · '),
         remaining: formatHoursMinutes(t.expiresAt.getTime() - Date.now()),
+        login: [t.startUrl ? vscode.l10n.t('IAM Identity Center') : undefined, t.startUrl, t.region]
+          .filter(Boolean)
+          .join(' · '),
       };
       if (lastTokenOk === false) modelsChanged.fire();
       lastTokenOk = true;
@@ -312,9 +318,21 @@ export function activate(context: vscode.ExtensionContext): void {
   /** Copilot-style hover: plan, credits with a progress bar, reset date, bonuses, token state, actions. */
   function usageTooltip(): vscode.MarkdownString {
     const md = new vscode.MarkdownString(undefined, true);
-    md.isTrusted = { enabledCommands: ['kirorelay.refreshUsage', 'kirorelay.manage', 'kirorelay.diagnose', 'kirorelay.signIn'] };
+    md.isTrusted = {
+      enabledCommands: [
+        'kirorelay.refreshUsage',
+        'kirorelay.manage',
+        'kirorelay.diagnose',
+        'kirorelay.signIn',
+        'workbench.action.openSettings',
+      ],
+    };
     const u = usage.current;
-    md.appendMarkdown(`**Kiro Relay**${u?.plan ? ` · ${u.plan}` : ''}\n\n`);
+    const settingsArg = encodeURIComponent(JSON.stringify([`@ext:${context.extension.id}`]));
+    md.appendMarkdown(
+      `**Kiro Relay**${u?.plan ? ` · ${u.plan}` : ''} &nbsp;&nbsp; ` +
+        `[$(settings-gear)](command:workbench.action.openSettings?${settingsArg} "${vscode.l10n.t('Open settings')}")\n\n`,
+    );
     const c = u && creditItem(u);
     if (c) {
       const reset = u.resetsAt ? ` — ${vscode.l10n.t('Resets {0}', fmtReset(u.resetsAt))}` : '';
@@ -336,7 +354,8 @@ export function activate(context: vscode.ExtensionContext): void {
       md.appendMarkdown(`$(warning) ${vscode.l10n.t('Credit usage unavailable.')}\n\n`);
     }
     const stateIcon = state.kind === 'ok' ? KIRO_ICON_ID : state.kind === 'error' ? 'error' : 'warning';
-    md.appendMarkdown(`$(${stateIcon}) ${state.summary}${state.kind === 'ok' && state.detail ? ` · ${state.detail}` : ''}\n\n`);
+    md.appendMarkdown(`$(${stateIcon}) ${state.summary}\n\n`);
+    if (state.kind === 'ok' && state.login) md.appendText(`${state.login}\n\n`);
     if (state.kind !== 'ok' && state.detail) md.appendText(`${state.detail}\n\n`);
     const links = [
       `[$(refresh) ${vscode.l10n.t('Refresh')}](command:kirorelay.refreshUsage)`,
@@ -413,15 +432,39 @@ export function activate(context: vscode.ExtensionContext): void {
     }
   });
 
-  const signIn = vscode.commands.registerCommand('kirorelay.signIn', () => {
-    // In remote windows (devcontainer, SSH, WSL) there is no browser next to kiro-cli: use the device code flow.
-    const args = vscode.env.remoteName ? ' login --use-device-flow' : ' login';
-    const terminal = vscode.window.createTerminal({ name: 'kiro-cli login' });
+  const signIn = vscode.commands.registerCommand('kirorelay.signIn', async () => {
+    const c = vscode.workspace.getConfiguration('kirorelay.login');
+    const settings: LoginSettings = {
+      license: c.get<string>('license'),
+      startUrl: c.get<string>('startUrl'),
+      region: c.get<string>('region'),
+      deviceFlow: c.get<LoginSettings['deviceFlow']>('deviceFlow'),
+    };
+    let args: string[];
+    try {
+      args = buildLoginArgs(settings, vscode.env.remoteName !== undefined);
+    } catch (e) {
+      if (!(e instanceof LoginSettingsError)) throw e;
+      const open = vscode.l10n.t('Open settings');
+      const pick = await vscode.window.showErrorMessage(vscode.l10n.t('Invalid setting {0}: {1}', e.setting, e.message), open);
+      if (pick === open) await vscode.commands.executeCommand('workbench.action.openSettings', e.setting);
+      return;
+    }
+    log(`sign-in: running "${cliPath} ${args.join(' ')}" in a terminal`);
+    // kiro-cli runs as the terminal's process: no shell, so no setting can inject commands.
+    const terminal = vscode.window.createTerminal({ name: 'kiro-cli login', shellPath: cliPath, shellArgs: args });
     terminal.show();
-    terminal.sendText(`"${cliPath}"${args}`);
     void vscode.window.showInformationMessage(
       vscode.l10n.t('Finish signing in in the terminal. Kiro Relay picks up the new token within a minute.'),
     );
+    // Pick the new token up as soon as kiro-cli exits.
+    const closed = vscode.window.onDidCloseTerminal((t) => {
+      if (t !== terminal) return;
+      closed.dispose();
+      auth.provider.invalidate();
+      void refreshStatus(true).then(() => refreshModels());
+    });
+    context.subscriptions.push(closed);
   });
 
   const manage = vscode.commands.registerCommand('kirorelay.manage', async () => {

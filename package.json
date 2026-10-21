@@ -145,6 +145,52 @@
             ]
           },
           "markdownDescription": "%config.reasoningEffort.markdownDescription%"
+        },
+        "kirorelay.login.license": {
+          "type": "string",
+          "enum": [
+            "",
+            "pro",
+            "free"
+          ],
+          "default": "",
+          "scope": "machine",
+          "markdownDescription": "%config.login.license.description%",
+          "enumDescriptions": [
+            "%config.login.license.ask%",
+            "%config.login.license.pro%",
+            "%config.login.license.free%"
+          ]
+        },
+        "kirorelay.login.startUrl": {
+          "type": "string",
+          "default": "",
+          "scope": "machine",
+          "pattern": "^(https://\\S+)?$",
+          "markdownDescription": "%config.login.startUrl.description%"
+        },
+        "kirorelay.login.region": {
+          "type": "string",
+          "default": "",
+          "scope": "machine",
+          "pattern": "^([a-z]{2}(-[a-z]+)+-\\d+)?$",
+          "markdownDescription": "%config.login.region.description%"
+        },
+        "kirorelay.login.deviceFlow": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "always",
+            "never"
+          ],
+          "default": "auto",
+          "scope": "machine",
+          "markdownDescription": "%config.login.deviceFlow.description%",
+          "enumDescriptions": [
+            "%config.login.deviceFlow.auto%",
+            "%config.login.deviceFlow.always%",
+            "%config.login.deviceFlow.never%"
+          ]
         }
       }
     },

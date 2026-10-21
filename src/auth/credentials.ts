@@ -6,6 +6,8 @@ export interface Credentials {
   profileArn?: string;
   /** Raw value of the oauth_flow field, if any (informational only for now). */
   oauthFlow?: string;
+  /** IAM Identity Center start URL of the login, if any (not a secret). */
+  startUrl?: string;
   /** Is there an associated OIDC client registration (clientId/clientSecret)? */
   hasClientRegistration: boolean;
   /** Human-readable origin, e.g. "kiro-cli-db:kirocli:social:token". */
@@ -68,6 +70,7 @@ export function parseTokenObject(obj: Record<string, unknown>, source: string): 
     region,
     profileArn,
     oauthFlow: str(pick(obj, 'oauth_flow', 'oauthFlow')),
+    startUrl: str(pick(obj, 'start_url', 'startUrl')),
     hasClientRegistration: false,
     source,
   };

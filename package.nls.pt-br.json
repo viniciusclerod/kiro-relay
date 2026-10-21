@@ -14,5 +14,15 @@
   "config.auth.renewCommand.description": "Argumentos do kiro-cli que a extensão executa para o kiro-cli renovar um token vencido (padrão: whoami). Lista vazia = nunca executar o kiro-cli; você renova usando o kiro-cli.",
   "icon.kiro.description": "Logo do Kiro",
   "command.signIn.title": "Entrar com o kiro-cli",
-  "command.refreshUsage.title": "Atualizar uso de créditos"
+  "command.refreshUsage.title": "Atualizar uso de créditos",
+  "config.login.license.description": "Tipo de conta usado por **Kiro Relay: Entrar com o kiro-cli** (`kiro-cli login --license`).",
+  "config.login.license.ask": "Deixar o kiro-cli perguntar.",
+  "config.login.license.pro": "IAM Identity Center (organização, Kiro Pro).",
+  "config.login.license.free": "Builder ID, Google ou GitHub.",
+  "config.login.startUrl.description": "Start URL do IAM Identity Center, por exemplo `https://example.awsapps.com/start` (`kiro-cli login --identity-provider`). Vazio = o kiro-cli pergunta.",
+  "config.login.region.description": "Região do IAM Identity Center, por exemplo `us-east-1` (`kiro-cli login --region`). Vazio = o kiro-cli pergunta.",
+  "config.login.deviceFlow.description": "Usar o fluxo por código de dispositivo (`--use-device-flow`): o login é feito num navegador em qualquer máquina, com um código.",
+  "config.login.deviceFlow.auto": "Só em janelas remotas (Dev Containers, SSH, WSL), onde não há navegador junto do kiro-cli.",
+  "config.login.deviceFlow.always": "Sempre.",
+  "config.login.deviceFlow.never": "Nunca."
 }

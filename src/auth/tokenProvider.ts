@@ -8,6 +8,7 @@ export interface AccessToken {
   region?: string;
   profileArn?: string;
   oauthFlow?: string;
+  startUrl?: string;
   hasClientRegistration: boolean;
   source: string;
 }
@@ -34,6 +35,7 @@ function toAccessToken(c: Credentials): AccessToken {
     region: c.region,
     profileArn: c.profileArn,
     oauthFlow: c.oauthFlow,
+    startUrl: c.startUrl,
     hasClientRegistration: c.hasClientRegistration,
     source: c.source,
   };
