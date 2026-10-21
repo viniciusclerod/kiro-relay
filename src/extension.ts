@@ -11,6 +11,15 @@ import { fromVsCodeMessages, fromVsCodeTools } from './chat/vscodeMessages.ts';
 import { KiroApiError, ModelCatalog, toChatModelInfo, type ChatModelInfo } from './models/catalog.ts';
 import { resolveEffort } from './models/effort.ts';
 
+/**
+ * Model info sent to VS Code. `statusIcon` is proposed API (not in @types/vscode); VS Code 1.142 uses
+ * it for the model's icon in the picker and the chat input instead of guessing one from the name.
+ */
+type ProviderModelInfo = ChatModelInfo & { statusIcon?: vscode.ThemeIcon };
+
+/** Contributed in package.json (contributes.icons), built from media/kiro.svg. */
+const KIRO_ICON_ID = 'kirorelay-kiro';
+
 // UI text goes through vscode.l10n.t (English source, translations in l10n/).
 // Logs and the diagnostics report stay in English.
 
@@ -128,14 +137,16 @@ export function activate(context: vscode.ExtensionContext): void {
     };
   }
 
-  const provider: vscode.LanguageModelChatProvider<ChatModelInfo> = {
+  const kiroIcon = new vscode.ThemeIcon(KIRO_ICON_ID);
+
+  const provider: vscode.LanguageModelChatProvider<ProviderModelInfo> = {
     onDidChangeLanguageModelChatInformation: modelsChanged.event,
 
     async provideLanguageModelChatInformation(options) {
       try {
         const list = await catalog.get();
         const note = vscode.l10n.t('Default Kiro model.');
-        return list.models.map((m) => toChatModelInfo(m, list.defaultModelId, note));
+        return list.models.map((m) => ({ ...toChatModelInfo(m, list.defaultModelId, note), statusIcon: kiroIcon }));
       } catch (e) {
         log(`catalog unavailable: ${e instanceof Error ? e.message : String(e)}`);
         if (!options.silent) {

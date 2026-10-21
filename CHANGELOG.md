@@ -18,3 +18,5 @@
 - Token renewal: when the token has expired, Kiro Relay runs `kiro-cli whoami` so that `kiro-cli`
   renews its own token (`kirorelay.auth.renewCommand`). `kirorelay.cli.path` and the new setting
   can only be set in user settings, not by a workspace.
+- The Kiro logo is shown next to each Kiro model in the Chat model picker and the chat input (works
+  in light, dark and high-contrast themes).

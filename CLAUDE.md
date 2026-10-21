@@ -192,6 +192,19 @@ Não está no `@types/vscode` (1.140 é a última): é API proposta, pode mudar.
 `output_config.effort` (Claude) ou `reasoning.effort` (GPT) do catálogo; precedência seletor (se diferente do padrão) > setting
 `kirorelay.reasoningEffort` > padrão do backend. `thinking.type`/`display` e `max_tokens` do schema ainda não são expostos.
 
+## Ícone / logo (decisão do dono, 2026-10-21)
+
+- **A aba do provedor no seletor não aceita ícone de extensão**: o VS Code 1.142 escolhe o ícone da aba pelo `displayName`
+  comparando com uma lista fixa de marcas (Copilot, Claude/Anthropic, Gemini/Google, OpenAI/GPT, Grok/xAI, Kimi, Microsoft);
+  "Kiro" cai no ✨ genérico. `contributes.languageModelChatProviders` não tem campo de ícone.
+- O que dá: `statusIcon` (ThemeIcon) em cada modelo, campo proposto que o runtime repassa sem checar proposta; aparece no botão do
+  modelo no campo do Chat (e provavelmente nas linhas do seletor). Ícone próprio via `contributes.icons` + fonte `.woff`.
+- **Logo**: `media/kiro.svg` copiado do app Kiro (`/Applications/Kiro.app/.../kiro.kiro-agent/packages/kiricons/src/kiro.svg`,
+  pacote `@kiro/kiricons`, **licença AWS-IPL**). O dono decidiu usá-lo mesmo assim, ciente da licença. README avisa que o logo não é
+  MIT. O `.svg` não vai no `.vsix` (só a fonte). Fonte: `npm run build:icons` (`scripts/build-icons.mjs`, svgicons2svgfont → svg2ttf
+  → ttf2woff, reproduzível); commitar `media/kirorelay-icons.woff` ao mudar o SVG. Monocromático: o tema pinta (claro/escuro/HC).
+- `managementCommand` está **obsoleto** no 1.142 (ainda funciona); migrar quando mexer no manifesto.
+
 ## Itens não verificados (não presumir)
 
 - Limiar exato em que o `kiro-cli` passa a renovar (entre 0 e ~5 min antes do vencimento).

@@ -64,4 +64,6 @@ contains no tokens and is safe to paste into an issue.
 
 ## License
 
-MIT. See [LICENSE](LICENSE). Contributions: see [CONTRIBUTING.md](CONTRIBUTING.md).
+MIT. See [LICENSE](LICENSE). The Kiro logo (`media/kiro.svg`, and the icon font built from it) is
+not covered by the MIT license: it is taken from the Kiro app (`@kiro/kiricons`, licensed AWS-IPL)
+and remains the property of its owner. Contributions: see [CONTRIBUTING.md](CONTRIBUTING.md).

@@ -11,3 +11,5 @@ scripts/**
 CONTRIBUTING.md
 CLAUDE.md
 .gitignore
+.claude/**
+media/*.svg

@@ -60,6 +60,15 @@
         "category": "Kiro Relay"
       }
     ],
+    "icons": {
+      "kirorelay-kiro": {
+        "description": "%icon.kiro.description%",
+        "default": {
+          "fontPath": "media/kirorelay-icons.woff",
+          "fontCharacter": "\\E001"
+        }
+      }
+    },
     "configuration": {
       "title": "Kiro Relay",
       "properties": {
@@ -143,13 +152,17 @@
     "typecheck": "tsc --noEmit",
     "test": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --disable-warning=ExperimentalWarning --test \"test/**/*.test.ts\"",
     "package": "vsce package",
-    "check-name": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/check-name.ts"
+    "check-name": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/check-name.ts",
+    "build:icons": "node scripts/build-icons.mjs"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",
     "@types/vscode": "^1.104.0",
     "@vscode/vsce": "^3.0.0",
     "esbuild": "^0.25.0",
+    "svg2ttf": "^6.1.0",
+    "svgicons2svgfont": "^16.0.0",
+    "ttf2woff": "^3.0.0",
     "typescript": "^5.8.0"
   },
   "l10n": "./l10n"

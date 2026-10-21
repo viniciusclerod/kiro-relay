@@ -11,5 +11,6 @@
   "config.auth.ssoCachePath.description": "Directory of the SSO cache. Empty = ~/.aws/sso/cache.",
   "config.auth.refreshLeewaySeconds.description": "Margin before expiry at which the token is no longer treated as valid.",
   "config.reasoningEffort.markdownDescription": "Thinking effort per model, for example `{ \"claude-opus-5\": \"xhigh\" }`. A choice in the Chat model picker takes precedence. Levels the model does not accept are ignored.",
-  "config.auth.renewCommand.description": "kiro-cli arguments the extension runs to have kiro-cli renew an expired token (default: whoami). Empty list = never run kiro-cli; you renew it yourself by using kiro-cli."
+  "config.auth.renewCommand.description": "kiro-cli arguments the extension runs to have kiro-cli renew an expired token (default: whoami). Empty list = never run kiro-cli; you renew it yourself by using kiro-cli.",
+  "icon.kiro.description": "Kiro logo"
 }
