@@ -103,7 +103,9 @@ renovação sob demanda **e** pela verificação periódica da barra de status (
 nunca logar `err.message`, que inclui o stderr) e o gancho `renew` em `KiroCliTokenProvider`: sem token utilizável mas com um token
 vencido/na margem, roda o renovador e relê uma vez; se o kiro-cli não trocou um token que ainda vale mais de 30 s, usa-o mesmo assim
 (o `whoami` só renova perto do vencimento). Sem nenhuma credencial, não roda nada (só `kiro-cli login` resolve). `cli.path` e
-`renewCommand` têm `scope: machine`, para um workspace não poder escolher o executável. Opções originais:
+`renewCommand` têm `scope: machine`, para um workspace não poder escolher o executável. **Verificado com o kiro-cli real
+(2026-10-21 16:30):** token vencido às 16:30:20; o provedor rodou `kiro-cli whoami` (exit 0, ~5 s), releu e obteve token novo
+valendo até 17:30:47. Opções originais:
 - **A.** Cooperativo puro (pedir ao usuário que use o kiro-cli). Ruim com token curto.
 - **B.** A extensão executa um comando barato do kiro-cli que renove o token e relê o banco (preferida, mantém dependência exclusiva do CLI).
 - **C.** Refresh próprio via AWS SSO OIDC (`CreateToken`, grant `refresh_token`, com `client_id/secret` do registro) e gravar de volta. Arriscada.
