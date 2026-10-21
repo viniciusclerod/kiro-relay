@@ -38,6 +38,19 @@ function readConfig(): { auth: AuthConfig; cliPath: string } {
   };
 }
 
+/** Part kinds in the request, for the log (never their content), e.g. "TextPart x5, DataPart(image/png) x1". */
+function describeParts(messages: readonly vscode.LanguageModelChatRequestMessage[]): string {
+  const counts = new Map<string, number>();
+  for (const m of messages) {
+    for (const p of m.content) {
+      let kind = (p as object | null)?.constructor?.name ?? typeof p;
+      if (p instanceof vscode.LanguageModelDataPart) kind = `DataPart(${p.mimeType})`;
+      counts.set(kind, (counts.get(kind) ?? 0) + 1);
+    }
+  }
+  return [...counts].map(([k, n]) => `${k} x${n}`).join(', ') || 'none';
+}
+
 /** Localized, user-facing description of an error. */
 function describeError(e: unknown): string {
   if (e instanceof TokenExpiredError) {
@@ -92,6 +105,25 @@ export function activate(context: vscode.ExtensionContext): void {
   const cannotListModels = (e: unknown) =>
     vscode.l10n.t('Kiro: could not list the models. {0}', describeError(e));
 
+  async function prepareChat(
+    modelId: string,
+    messages: readonly vscode.LanguageModelChatRequestMessage[],
+    options: vscode.ProvideLanguageModelChatResponseOptions,
+  ) {
+    // modelConfiguration is proposed API (not in @types/vscode); VS Code 1.142 already sends it.
+    const modelConfiguration = (options as { modelConfiguration?: Record<string, unknown> })
+      .modelConfiguration;
+    const kiroModel = (await catalog.get()).models.find((m) => m.id === modelId);
+    const settings = vscode.workspace
+      .getConfiguration('kirorelay')
+      .get<Record<string, unknown>>('reasoningEffort');
+    return {
+      effort: resolveEffort(modelId, kiroModel?.effort, modelConfiguration, settings),
+      chatMessages: fromVsCodeMessages(messages),
+      tools: fromVsCodeTools(options.tools),
+    };
+  }
+
   const provider: vscode.LanguageModelChatProvider<ChatModelInfo> = {
     onDidChangeLanguageModelChatInformation: modelsChanged.event,
 
@@ -113,20 +145,21 @@ export function activate(context: vscode.ExtensionContext): void {
     },
 
     async provideLanguageModelChatResponse(model, messages, options, progress, token) {
-      // modelConfiguration is proposed API (not in @types/vscode); VS Code 1.142 already sends it.
-      const modelConfiguration = (options as { modelConfiguration?: Record<string, unknown> })
-        .modelConfiguration;
-      const kiroModel = (await catalog.get()).models.find((m) => m.id === model.id);
-      const settings = vscode.workspace
-        .getConfiguration('kirorelay')
-        .get<Record<string, unknown>>('reasoningEffort');
-      const effort = resolveEffort(model.id, kiroModel?.effort, modelConfiguration, settings);
-      const chatMessages = fromVsCodeMessages(messages);
-      const tools = fromVsCodeTools(options.tools);
+      log(`chat request received: model ${model.id}, ${messages.length} messages, parts: ${describeParts(messages)}`);
+      let prepared;
+      try {
+        prepared = await prepareChat(model.id, messages, options);
+      } catch (e) {
+        log(`chat preparation failed: ${e instanceof Error ? (e.stack ?? e.message) : String(e)}`);
+        throw new Error(describeError(e));
+      }
+      const { effort, chatMessages, tools } = prepared;
       const conversationId = randomUUID();
+      const images = chatMessages.flatMap((m) => m.parts).filter((p) => p.type === 'image');
       log(
         `chat request: model ${model.id}, effort ${effort.level ?? 'n/a'} (${effort.source}), ` +
-          `${chatMessages.length} messages, ${tools.length} tools`,
+          `${chatMessages.length} messages, ${tools.length} tools, ${images.length} images` +
+          (images.length ? ` (${images.map((i) => `${i.mimeType} ${i.data.length} B`).join(', ')})` : ''),
       );
 
       // LanguageModelThinkingPart is proposed API; VS Code 1.142 exposes it without a proposal check.
