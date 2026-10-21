@@ -42,7 +42,7 @@ linguagem** (`vscode.lm.registerLanguageModelChatProvider`) no Chat do VS Code, 
 
 - **Etapa 1, autenticação:** concluída e testada no F5. O diagnóstico mostra `agora:`, o tempo restante do access token, os
   fingerprints do refresh token e do `client_id`, e o `client_secret_expires_at`.
-- **Etapa 3, catálogo e provedor:** implementada e verificada contra o backend real fora do VS Code, ainda **não testada no F5**.
+- **Etapa 3, catálogo e provedor:** implementada e verificada no F5 (catálogo carregado no extension host).
   `src/models/catalog.ts` (puro) e o registro `vscode.lm.registerLanguageModelChatProvider('kirorelay', …)` em `extension.ts`.
   O chat (`provideLanguageModelChatResponse`) ainda lança "não implementado". `provideTokenCount` é uma estimativa (~4 caracteres/token).
 
@@ -103,7 +103,11 @@ Medido com o diagnóstico (só fingerprints e datas) e um monitor da data de mod
   sessão da organização é desconhecida.
 - O kiro-cli grava no banco até em `whoami` sem renovação. `client_secret_expires_at` não muda no login (registro reaproveitado).
 - `kiro-cli whoami`, `profile`, `chat --list-models` e `chat --no-interactive` existem; `whoami` é o mais barato que renova.
-- O tempo de vida **varia**: uma renovação feita por `kiro-cli chat --list-models` às 12:08:47 gerou um token que vencia às 12:39:36 (~31 min).
+- O tempo de vida **varia** porque é cortado no fim da sessão: uma renovação às 12:08:47 gerou um token que vencia às 12:39:36 (~31 min),
+  exatamente **8 h** depois do login das 04:39:47. Às 14:30 a renovação falhou e o kiro-cli apagou o token.
+- **Conclusão: sessão do IAM Identity Center de 8 h** (padrão da AWS), e nenhuma renovação passa disso. Depois, só `kiro-cli login`.
+  A primeira sessão observada (fim às 04:37) é compatível com um login às ~20:37 do dia anterior.
+- No F5 (14:30), o extension host listou os 20 modelos atrás do proxy corporativo, e a lista recarregou sozinha quando o token voltou a ser válido.
 
 ## Próximas etapas (ordem)
 
@@ -111,7 +115,7 @@ Medido com o diagnóstico (só fingerprints e datas) e um monitor da data de mod
 2. **Spike** do cliente `@aws/codewhisperer-streaming-client` (pacote oficial da AWS, v1.0.45 na última checagem; o Kiro IDE parece usar
    esse cliente). Verificar: opção `endpoint`/`token`; se aceita os campos do Kiro (`additionalModelRequestFields`, `reasoningContent`);
    injeção de headers por `middlewareStack`; tamanho no bundle. Se não servir, usar `@smithy/eventstream-codec` + `fetch`.
-3. ~~Catálogo de modelos (`ListAvailableModels`, REST) e `provideLanguageModelChatInformation`.~~ Feito; falta testar no F5.
+3. ~~Catálogo de modelos (`ListAvailableModels`, REST) e `provideLanguageModelChatInformation`.~~ Feito e verificado no F5.
 4. Chat só texto com streaming (`provideLanguageModelChatResponse`), `provideTokenCount` (estimativa).
 5. Tool calling, imagens, variantes de esforço (`modelo:nivel` como itens separados no picker).
 6. i18n (inglês padrão), ícone, LICENSE (nome), CHANGELOG, publicação (Marketplace + **Open VSX**, usado pelo Kiro IDE).
@@ -152,9 +156,9 @@ Contribuição `contributes.languageModelChatProviders` (`vendor`, `displayName`
 
 ## Itens não verificados (não presumir)
 
-- Limiar exato em que o `kiro-cli` passa a renovar (entre 0 e ~5 min antes do vencimento) e a duração da sessão do IdC.
+- Limiar exato em que o `kiro-cli` passa a renovar (entre 0 e ~5 min antes do vencimento).
 - Superfície real do `@aws/codewhisperer-streaming-client` (nomes de classes/comandos, tipos dos campos do Kiro).
-- Comportamento do `fetch`/SDK atrás do proxy corporativo no extension host (o `fetch` do Node no container funcionou para o catálogo).
+- Comportamento do SDK/streaming atrás do proxy corporativo (o `fetch` do extension host funcionou para o catálogo).
 - Como o seletor de modelos do Chat apresenta `detail`/`tooltip` e se `toolCalling: true` sem chat implementado causa efeitos colaterais.
 - Se `node:sqlite` existe no VS Code **desktop local** (só confirmado no VS Code Server do devcontainer).
 - Em sessões remotas (devcontainer/WSL/SSH) a extensão roda **no lado remoto** e lê credenciais de lá; avaliar `extensionKind` no futuro.
