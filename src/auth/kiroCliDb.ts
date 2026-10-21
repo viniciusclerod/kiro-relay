@@ -1,6 +1,7 @@
 import * as fs from 'node:fs/promises';
 import {
   extractProfileArn,
+  parseTimestamp,
   parseTokenRecord,
   pick,
   regionFromArn,
@@ -143,7 +144,15 @@ export class KiroCliDbSource implements CredentialSource {
 export interface EntryInfo {
   key: string;
   fields: string[];
-  token?: { expiresAt?: string; fingerprint?: string; hasRefreshToken: boolean };
+  token?: {
+    expiresAt?: string;
+    fingerprint?: string;
+    hasRefreshToken: boolean;
+    /** Fingerprint do refresh token: muda quando o kiro-cli o rotaciona. */
+    refreshFingerprint?: string;
+  };
+  /** Registro de cliente OIDC (device-registration). */
+  registration?: { clientIdFingerprint?: string; clientSecretExpiresAt?: string };
   error?: string;
 }
 
@@ -174,11 +183,27 @@ function describe(key: string, raw: string): EntryInfo {
       } catch {
         // deixa undefined
       }
+      const refresh = pick(rec, 'refresh_token', 'refreshToken');
       info.token = {
         expiresAt,
         fingerprint: fingerprint(access),
-        hasRefreshToken: Boolean(pick(rec, 'refresh_token', 'refreshToken')),
+        hasRefreshToken: typeof refresh === 'string' && refresh !== '',
+        refreshFingerprint:
+          typeof refresh === 'string' && refresh !== '' ? fingerprint(refresh) : undefined,
       };
+    }
+    const clientId = pick(rec, 'client_id', 'clientId');
+    if (typeof clientId === 'string') {
+      let clientSecretExpiresAt: string | undefined;
+      const raw = pick(rec, 'client_secret_expires_at', 'clientSecretExpiresAt');
+      if (raw !== undefined) {
+        try {
+          clientSecretExpiresAt = parseTimestamp(raw).toISOString();
+        } catch {
+          info.error = 'client_secret_expires_at em formato desconhecido';
+        }
+      }
+      info.registration = { clientIdFingerprint: fingerprint(clientId), clientSecretExpiresAt };
     }
     return info;
   } catch {

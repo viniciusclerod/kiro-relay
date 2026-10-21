@@ -23,7 +23,12 @@ function section(lines: string[], title: string): void {
   lines.push('', `## ${title}`);
 }
 
-function formatDb(lines: string[], d: DbInspection): void {
+function remaining(iso: string | undefined, nowMs: number): string {
+  if (!iso) return '?';
+  return `${iso} (${formatDuration(Date.parse(iso) - nowMs)})`;
+}
+
+function formatDb(lines: string[], d: DbInspection, nowMs: number): void {
   lines.push(`- caminho: ${d.path}`);
   lines.push(`- tamanho: ${d.sizeBytes} bytes, modificado em ${d.mtime}`);
   lines.push(`- arquivo -wal: ${d.walSizeBytes === undefined ? 'ausente' : `${d.walSizeBytes} bytes`}`);
@@ -35,8 +40,18 @@ function formatDb(lines: string[], d: DbInspection): void {
     lines.push(`    campos: ${e.fields.join(', ') || '(nenhum)'}`);
     if (e.token) {
       lines.push(
-        `    token: fingerprint=${e.token.fingerprint}, expira=${e.token.expiresAt ?? '?'}, ` +
-          `refresh_token=${e.token.hasRefreshToken ? 'sim' : 'não'}`,
+        `    access token: fingerprint=${e.token.fingerprint}, ` +
+          `expira=${remaining(e.token.expiresAt, nowMs)}`,
+      );
+      lines.push(
+        `    refresh token: ${e.token.refreshFingerprint ? `fingerprint=${e.token.refreshFingerprint}` : 'ausente'}`,
+      );
+    }
+    if (e.registration) {
+      lines.push(`    client_id: fingerprint=${e.registration.clientIdFingerprint}`);
+      const secretExp = e.registration.clientSecretExpiresAt;
+      lines.push(
+        `    client_secret_expires_at: ${secretExp ? remaining(secretExp, nowMs) : '(ausente)'}`,
       );
     }
     if (e.error) lines.push(`    aviso: ${e.error}`);
@@ -47,6 +62,7 @@ function formatDb(lines: string[], d: DbInspection): void {
 export async function runDiagnostics(input: DiagnoseInput): Promise<string> {
   const now = input.now ?? Date.now;
   const lines: string[] = ['# Kiro Relay: diagnóstico de autenticação'];
+  lines.push('', `agora: ${new Date(now()).toISOString()}`);
 
   section(lines, 'Ambiente');
   for (const [k, v] of Object.entries(input.host)) lines.push(`- ${k}: ${v}`);
@@ -79,7 +95,7 @@ export async function runDiagnostics(input: DiagnoseInput): Promise<string> {
   }
   const dbPath = await firstExisting(input.databaseCandidates);
   if (!dbPath) lines.push('- nenhum candidato existe');
-  else formatDb(lines, await inspectDatabase(dbPath));
+  else formatDb(lines, await inspectDatabase(dbPath), now());
 
   section(lines, 'Cache SSO');
   const sso = await inspectSsoCache(input.ssoCacheDir);
