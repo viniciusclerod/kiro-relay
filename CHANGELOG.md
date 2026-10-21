@@ -6,7 +6,7 @@
   cooperative token provider that never refreshes tokens.
 - Commands: Diagnose Authentication, Reload Credentials. Status bar indicator.
 - Model provider `kirorelay`: lists the models of your Kiro subscription in the Chat model picker
-  (context window, max output, image input, credit multiplier). 
+  (context window, max output, image input, credit multiplier).
 - Commands: Refresh Models, Manage. Diagnostics now show the current time, the token's remaining time,
   the refresh token fingerprint and the OIDC client secret expiry.
 - Thinking effort per model in the Chat model picker (models that support it), with the
