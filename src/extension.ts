@@ -5,10 +5,11 @@ import { KiroAuthError, NotLoggedInError, TokenExpiredError } from './auth/error
 import { createAuth, type AuthConfig, type SourceId } from './auth/factory.ts';
 import { LoginSettingsError, buildLoginArgs, type LoginSettings } from './auth/login.ts';
 import { formatHoursMinutes } from './auth/redact.ts';
+import { SessionTracker, type SessionRecord } from './auth/session.ts';
 import { FirstOutputTimeoutError, streamChat } from './chat/client.ts';
 import { RequestBuildError, buildRequest } from './chat/request.ts';
 import { KiroStreamError } from './chat/response.ts';
-import { TurnUsageTracker, estimateContextTokens, interactionKey, markFooter, type TurnUsage } from './chat/turnUsage.ts';
+import { TurnUsageTracker, estimateContextTokens, interactionKey, type TurnUsage } from './chat/turnUsage.ts';
 import { fromVsCodeMessages, fromVsCodeTools } from './chat/vscodeMessages.ts';
 import { UsageTracker, creditItem, formatPercent, type UsageSummary } from './kiro/usage.ts';
 import { KiroApiError, ModelCatalog, toChatModelInfo, type ChatModelInfo } from './models/catalog.ts';
@@ -69,6 +70,11 @@ function describeParts(messages: readonly vscode.LanguageModelChatRequestMessage
 
 function escapeHtml(text: string): string {
   return text.replace(/[&<>"'|*_`\[\]\\]/g, (ch) => `&#${ch.charCodeAt(0)};`);
+}
+
+/** Secondary text in hovers, in the theme's description color. */
+function muted(text: string): string {
+  return `<span style="color:var(--vscode-descriptionForeground);">${escapeHtml(text)}</span>`;
 }
 
 /** Localized, user-facing description of an error. */
@@ -137,6 +143,14 @@ export function activate(context: vscode.ExtensionContext): void {
     }
   };
   const turnUsage = new TurnUsageTracker();
+  const SESSION_KEY = 'kirorelay.session';
+  const session = new SessionTracker(
+    {
+      get: () => context.globalState.get<SessionRecord>(SESSION_KEY),
+      set: (r) => void context.globalState.update(SESSION_KEY, r),
+    },
+    () => vscode.workspace.getConfiguration('kirorelay').get<number>('auth.sessionHours', 8),
+  );
   /** Context window of the model of the last interaction, for the token estimate in the hover. */
   let lastTurnMaxInput = 0;
   const modelsChanged = new vscode.EventEmitter<void>();
@@ -199,7 +213,6 @@ export function activate(context: vscode.ExtensionContext): void {
       const { effort, chatMessages, tools, maxInputTokens } = prepared;
       const conversationId = randomUUID();
       const turnKey = interactionKey(chatMessages);
-      let calledTools = false;
       const images = chatMessages.flatMap((m) => m.parts).filter((p) => p.type === 'image');
       log(
         `chat request: model ${model.id}, effort ${effort.level ?? 'n/a'} (${effort.source}), ` +
@@ -256,17 +269,12 @@ export function activate(context: vscode.ExtensionContext): void {
               break;
             case 'toolCall':
               closeThinking();
-              calledTools = true;
               progress.report(new vscode.LanguageModelToolCallPart(event.id, event.name, event.input));
               break;
             case 'end': {
               closeThinking();
-              const turn = turnUsage.add(turnKey, event.credits, event.contextUsagePercentage);
+              turnUsage.add(turnKey, event.credits, event.contextUsagePercentage);
               lastTurnMaxInput = maxInputTokens;
-              // Only after the final answer of the interaction (not after a tool call step).
-              if (!calledTools && vscode.workspace.getConfiguration('kirorelay').get<boolean>('chat.showUsage', true)) {
-                progress.report(new vscode.LanguageModelTextPart(markFooter(usageFooter(turn, maxInputTokens))));
-              }
               renderStatus();
               refreshUsageSoon();
               log(
@@ -301,9 +309,9 @@ export function activate(context: vscode.ExtensionContext): void {
 
   const status = vscode.window.createStatusBarItem('kirorelay.status', vscode.StatusBarAlignment.Right, 50);
   status.name = 'Kiro Relay';
-  // VS Code only opens a status bar hover on click for its own items (Copilot uses an internal command
-  // compared by identity). A no-op command keeps the item looking like a button; the hover is the panel.
-  status.command = 'kirorelay.statusBarClick';
+  // Hover = the Copilot-style panel; click = the Kiro Relay menu. (VS Code only opens a status bar hover
+  // on click for its own items: Copilot uses an internal command compared by identity.)
+  status.command = 'kirorelay.manage';
 
   /** What the status bar and the menu show, refreshed by refreshStatus(). */
   let state: {
@@ -330,6 +338,8 @@ export function activate(context: vscode.ExtensionContext): void {
           .filter(Boolean)
           .join(' · '),
       };
+      const renewal = auth.renewer.last;
+      session.observe(t, Date.now(), renewal?.status === 'ran' ? renewal.at : undefined);
       if (lastTokenOk === false) modelsChanged.fire();
       lastTokenOk = true;
       void usage.refresh();
@@ -371,10 +381,6 @@ export function activate(context: vscode.ExtensionContext): void {
     return parts.join(' · ');
   }
 
-  /** Footer appended to the final answer of an interaction (italic, removed from the history). */
-  function usageFooter(turn: TurnUsage, maxInputTokens: number): string {
-    return turnUsageText(turn, maxInputTokens);
-  }
   /** One line about credits, for the menu (plain text). */
   function creditsLine(u: UsageSummary | undefined): string | undefined {
     const c = u && creditItem(u);
@@ -416,7 +422,6 @@ export function activate(context: vscode.ExtensionContext): void {
     };
     const u = usage.current;
     const cell = (text: string) => escapeHtml(text);
-    const muted = (text: string) => `<span style="color:var(--vscode-descriptionForeground);">${cell(text)}</span>`;
     const rows: Array<[string, string]> = [];
     const section = (left: string, right = '') => rows.push([`**${cell(left)}**`, right]);
     const row = (left: string, right: string) => rows.push([left, right]);
@@ -464,7 +469,9 @@ export function activate(context: vscode.ExtensionContext): void {
 
     const stateIcon = state.kind === 'ok' ? KIRO_ICON_ID : state.kind === 'error' ? 'error' : 'warning';
     if (state.kind === 'ok') {
-      section(vscode.l10n.t('Account'), `$(${stateIcon}) ${muted(vscode.l10n.t('token {0}', state.remaining ?? ''))}`);
+      section(vscode.l10n.t('Account'), `$(${stateIcon}) ${muted(vscode.l10n.t('Signed in'))}`);
+      row(muted(vscode.l10n.t('Token')), vscode.l10n.t('{0} left', state.remaining ?? '?'));
+      row(muted(vscode.l10n.t('Kiro session')), sessionText());
       if (state.login) {
         const [kind, url, region] = state.login.split(' · ');
         let host: string | undefined;
@@ -497,10 +504,22 @@ export function activate(context: vscode.ExtensionContext): void {
     return md;
   }
 
+  /** Remaining time of the IAM Identity Center session, marked "≈" when estimated. */
+  function sessionText(): string {
+    const est = session.estimate();
+    const left = est.endsAt ? est.endsAt.getTime() - Date.now() : undefined;
+    if (left === undefined || left <= 0) {
+      const hours = vscode.workspace.getConfiguration('kirorelay').get<number>('auth.sessionHours', 8);
+      return muted(vscode.l10n.t('unknown (up to {0} h after sign-in)', hours));
+    }
+    const text = vscode.l10n.t('{0} left', formatHoursMinutes(left));
+    return est.exact ? text : `≈ ${text}${muted(` · ${vscode.l10n.t('estimate')}`)}`;
+  }
+
   function renderStatus(): void {
     const icon = `$(${KIRO_ICON_ID})`;
     if (state.kind === 'ok') {
-      status.text = `${icon} ${state.remaining ?? ''}`.trim();
+      status.text = icon;
       status.backgroundColor = undefined;
     } else {
       status.text = `${icon} ${state.kind === 'error' ? '$(error)' : '$(warning)'}`;
@@ -559,8 +578,6 @@ export function activate(context: vscode.ExtensionContext): void {
       void vscode.window.showInformationMessage(`Kiro: ${creditsLine(u)}`);
     }
   });
-
-  const statusBarClick = vscode.commands.registerCommand('kirorelay.statusBarClick', () => {});
 
   const signIn = vscode.commands.registerCommand('kirorelay.signIn', async () => {
     const c = vscode.workspace.getConfiguration('kirorelay.login');
@@ -653,7 +670,6 @@ export function activate(context: vscode.ExtensionContext): void {
     refreshModelsCmd,
     manage,
     signIn,
-    statusBarClick,
     refreshUsageCmd,
     onConfig,
     { dispose: () => usageTimers.forEach((t) => clearTimeout(t)) },

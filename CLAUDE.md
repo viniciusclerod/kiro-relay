@@ -96,12 +96,18 @@ Implementado em `src/kiro/usage.ts`; tooltip rico da barra de status + linha no 
 30 a 60 s depois** (8,69 → 8,70 entre +31 s e +62 s após uma requisição de 0,008 crédito); por isso atualiza a cada 5 min e aos 20 s e
 75 s após a última resposta do chat. `currentUsageWithPrecision` tem 2 casas. Percentual: 1 casa abaixo de 10% (arredonda para baixo).
 
-Consumo por interação (decisão do dono, 2026-10-21: no chat + painel): créditos do `meteringEvent` e % de contexto do
+Consumo por interação (decisão do dono, 2026-10-21: primeiro no chat + painel; depois **só no painel**, porque ao lado do nome do
+modelo não é possível): créditos do `meteringEvent` e % de contexto do
 `contextUsageEvent` (tokens ≈ % × `maxInputTokens`; **o Kiro não informa tokens exatos**). Rodapé em itálico ao fim da resposta final
 (sem tool call), somando os passos do modo Agent: a interação é identificada pelo hash das mensagens até a última mensagem de texto do
 usuário (`src/chat/turnUsage.ts`). O rodapé vai entre separadores invisíveis U+2063 e é removido em `fromVsCodeMessages` antes de
 reenviar (os separadores ficam **dentro** dos `*`, senão o itálico não fecha). O canal "usage" do Chat (o que aparece junto do nome do
 modelo) é alimentado pelo **participante** (`stream.usage`, Copilot), não pelo provedor: o rodapé na resposta é o mais perto possível.
+- **Fim da sessão do IdC (estimativa, `src/auth/session.ts`):** o backend não informa. Refresh token novo (fingerprint) visto com token
+  de ≥55 min = login agora → fim ≈ login + `kirorelay.auth.sessionHours` (8). Renovação recente (≤3 min) que devolve token de <50 min =
+  token cortado pelo fim da sessão → fim exato. Guardado em `globalState['kirorelay.session']` (só fingerprint). Mostrado como tempo
+  restante ("restam …"), nunca hora do relógio: o extension host pode estar em UTC.
+- **Barra de status (decisão do dono):** só o ícone do Kiro (+ ⚠/⛔); clique = menu (QuickPick); hover = painel.
 - **Raciocínio (F5, 2026-10-21):** o modelo `auto` manda um `reasoningContentEvent` com `"..."` (raciocínio oculto). Um
   `ThinkingPart` nunca fechado prendeu a resposta no bloco "Completed N steps". Regra: ignorar raciocínio só com pontos/espaços e
   **fechar** o bloco com `ThinkingPart('', undefined, { vscode_reasoning_done: true })` antes de texto, tool call ou fim (como o Copilot).

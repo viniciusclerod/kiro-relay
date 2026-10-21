@@ -1,4 +1,5 @@
 import type { Credentials } from './credentials.ts';
+import { fingerprint } from './redact.ts';
 import { NotLoggedInError, TokenExpiredError } from './errors.ts';
 import type { CredentialSource, Logger } from './source.ts';
 
@@ -9,6 +10,8 @@ export interface AccessToken {
   profileArn?: string;
   oauthFlow?: string;
   startUrl?: string;
+  /** Fingerprint of the refresh token (never the token): changes on every new sign-in. */
+  refreshFingerprint?: string;
   hasClientRegistration: boolean;
   source: string;
 }
@@ -36,6 +39,7 @@ function toAccessToken(c: Credentials): AccessToken {
     profileArn: c.profileArn,
     oauthFlow: c.oauthFlow,
     startUrl: c.startUrl,
+    refreshFingerprint: c.refreshToken ? fingerprint(c.refreshToken) : undefined,
     hasClientRegistration: c.hasClientRegistration,
     source: c.source,
   };

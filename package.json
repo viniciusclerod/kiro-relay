@@ -188,6 +188,15 @@
             "default": "",
             "description": "%config.auth.ssoCachePath.description%",
             "order": 4
+          },
+          "kirorelay.auth.sessionHours": {
+            "type": "number",
+            "default": 8,
+            "minimum": 1,
+            "maximum": 2160,
+            "scope": "application",
+            "order": 5,
+            "markdownDescription": "%config.auth.sessionHours.description%"
           }
         }
       },
@@ -226,12 +235,6 @@
             },
             "markdownDescription": "%config.reasoningEffort.markdownDescription%",
             "order": 0
-          },
-          "kirorelay.chat.showUsage": {
-            "type": "boolean",
-            "default": true,
-            "order": 1,
-            "markdownDescription": "%config.chat.showUsage.description%"
           }
         }
       }

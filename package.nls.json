@@ -29,5 +29,5 @@
   "config.section.auth": "Authentication",
   "config.section.cli": "kiro-cli",
   "config.section.chat": "Chat",
-  "config.chat.showUsage.description": "Show the credits and context used at the end of each answer in Chat. The line is removed from the history sent back to the model."
+  "config.auth.sessionHours.description": "Duration of your IAM Identity Center session in hours (8 is the AWS default; your organization may use another value). Only used to estimate when you will need to run `kiro-cli login` again."
 }

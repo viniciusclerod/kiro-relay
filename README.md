@@ -39,7 +39,7 @@ Available in English and Brazilian Portuguese (follows the VS Code display langu
 | `Kiro Relay: Refresh Credit Usage` | Fetches your credit usage again (it refreshes every 5 minutes and after chat responses) |
 | `Kiro Relay: Sign In with kiro-cli` | Opens a terminal running `kiro-cli login` (`--use-device-flow` in remote windows) |
 
-The status bar shows the Kiro logo and how long the token is still valid (or a warning). Hover it to see your plan, credits used (with the reset date and any bonuses) and the token state. Click it for a menu with the connection state and all actions, including signing in again with `kiro-cli`.
+The status bar shows the Kiro logo (with a warning when something needs attention). Hover it to see your plan, credits used (with the reset date and any bonuses), the last interaction, and how long the token and the Kiro session still last; click it for the Kiro Relay menu. Click it for a menu with the connection state and all actions, including signing in again with `kiro-cli`.
 
 ## Settings
 
@@ -50,12 +50,12 @@ The status bar shows the Kiro logo and how long the token is still valid (or a w
 | `kirorelay.auth.databasePath` | auto | Path to `kiro-cli`'s `data.sqlite3` |
 | `kirorelay.auth.ssoCachePath` | `~/.aws/sso/cache` | Directory of the SSO cache |
 | `kirorelay.auth.refreshLeewaySeconds` | `300` | Margin before expiry at which the credentials are read again |
+| `kirorelay.auth.sessionHours` | `8` | Your IAM Identity Center session duration, to estimate when you must sign in again |
 | `kirorelay.auth.renewCommand` | `["whoami"]` | `kiro-cli` arguments run to renew an expired token; `[]` = never run `kiro-cli` |
 | `kirorelay.login.license` | `""` | Account type for **Sign In with kiro-cli**: `pro` (IAM Identity Center), `free` (Builder ID, Google, GitHub) or empty to let `kiro-cli` ask |
 | `kirorelay.login.startUrl` | `""` | IAM Identity Center start URL, e.g. `https://example.awsapps.com/start` |
 | `kirorelay.login.region` | `""` | IAM Identity Center region, e.g. `us-east-1` |
 | `kirorelay.login.deviceFlow` | `auto` | Device code flow: `auto` (remote windows only), `always` or `never` |
-| `kirorelay.chat.showUsage` | `true` | Show the credits and context used at the end of each answer |
 | `kirorelay.reasoningEffort` | `{}` | Thinking effort per model, e.g. `{ "claude-opus-5": "xhigh" }`. A choice in the Chat model picker takes precedence |
 
 ## Remote development (Dev Containers, WSL, SSH)

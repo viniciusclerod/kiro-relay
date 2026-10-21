@@ -49,6 +49,11 @@
   "Requests": "Requisições",
   "This session": "Nesta sessão",
   "Account": "Conta",
-  "token {0}": "token {0}",
-  "Sign in": "Entrar"
+  "Sign in": "Entrar",
+  "Signed in": "Autenticado",
+  "Token": "Token",
+  "Kiro session": "Sessão do Kiro",
+  "{0} left": "restam {0}",
+  "unknown (up to {0} h after sign-in)": "desconhecida (até {0} h após o login)",
+  "estimate": "estimativa"
 }

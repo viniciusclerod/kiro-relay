@@ -26,5 +26,8 @@
   and bonuses. New command: Refresh Credit Usage.
 - Login settings (`kirorelay.login.*`: license, IAM Identity Center start URL and region, device
   flow) used by Sign In with kiro-cli; a settings button and the current login in the status hover.
-- Credits and context used per interaction, at the end of each answer in Chat (Agent mode steps are
-  summed) and in the status hover, with the session total. Setting: `kirorelay.chat.showUsage`.
+- Credits and context used per interaction (Agent mode steps are summed) in the status hover, with
+  the session total.
+- Status bar: just the Kiro logo; click opens the menu, hover shows the panel, whose Account section
+  shows the remaining token time and an estimate of the Kiro (IAM Identity Center) session
+  (`kirorelay.auth.sessionHours`).
