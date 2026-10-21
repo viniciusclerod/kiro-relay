@@ -1,10 +1,10 @@
-// Catálogo de modelos do Kiro (ListAvailableModels). Módulo puro: sem vscode.
-// Formato observado em 2026-10-21 no host management.{region}.kiro.dev; NÃO é contrato oficial.
+// Kiro model catalog (ListAvailableModels). Pure module: no vscode.
+// Format observed on 2026-10-21 on the management.{region}.kiro.dev host; NOT an official contract.
 
 import type { AccessToken } from '../auth/tokenProvider.ts';
 import { effortConfigurationSchema, parseEffortSupport, type EffortSupport } from './effort.ts';
 
-/** Teto de páginas, igual ao do Kiro IDE segundo o kirogo. */
+/** Page cap, the same as the Kiro IDE's according to kirogo. */
 export const MAX_PAGES = 10;
 const DEFAULT_MAX_INPUT_TOKENS = 200_000;
 const DEFAULT_MAX_OUTPUT_TOKENS = 64_000;
@@ -20,7 +20,7 @@ export interface KiroModel {
   maxInputTokens: number;
   maxOutputTokens: number;
   supportsImages: boolean;
-  /** JSON Schema de additionalModelRequestFields (esforço de raciocínio etc.). */
+  /** JSON Schema of additionalModelRequestFields (reasoning effort etc.). */
   requestFieldsSchema?: Record<string, unknown>;
   effort?: EffortSupport;
 }
@@ -30,14 +30,17 @@ export interface ModelList {
   defaultModelId?: string;
 }
 
-/** Erro HTTP do backend do Kiro. A mensagem nunca inclui headers nem o token. */
+/** HTTP error from the Kiro backend. The message never includes headers or the token. */
 export class KiroApiError extends Error {
   readonly status: number;
+  /** Message from the backend body (e.g. "Invalid token"). */
+  readonly detail: string;
 
-  constructor(status: number, message: string) {
-    super(message);
+  constructor(operation: string, status: number, detail: string) {
+    super(`${operation}: HTTP ${status}: ${detail}`);
     this.name = 'KiroApiError';
     this.status = status;
+    this.detail = detail;
   }
 }
 
@@ -49,7 +52,7 @@ export interface ListOptions {
 }
 
 function managementHost(region: string): string {
-  if (!/^[a-z]+(-[a-z]+)+-\d+$/.test(region)) throw new Error(`região inválida: ${region}`);
+  if (!/^[a-z]+(-[a-z]+)+-\d+$/.test(region)) throw new Error(`invalid region: ${region}`);
   return `https://management.${region}.kiro.dev`;
 }
 
@@ -67,7 +70,7 @@ function obj(v: unknown): Record<string, unknown> | undefined {
     : undefined;
 }
 
-/** Converte uma entrada de `models[]`. Retorna undefined se não houver modelId. */
+/** Converts an entry of `models[]`. Returns undefined when there is no modelId. */
 export function parseModel(raw: unknown): KiroModel | undefined {
   const m = obj(raw);
   const id = str(m?.modelId);
@@ -94,16 +97,16 @@ async function errorMessage(res: Response): Promise<string> {
     const msg = str(body?.message);
     if (msg) return msg;
   } catch {
-    // corpo não é JSON
+    // body is not JSON
   }
-  return res.statusText || 'erro desconhecido';
+  return res.statusText || 'unknown error';
 }
 
-/** GET /ListAvailableModels, seguindo nextToken até MAX_PAGES páginas. */
+/** GET /ListAvailableModels, following nextToken for up to MAX_PAGES pages. */
 export async function listAvailableModels(opts: ListOptions): Promise<ModelList> {
   const doFetch = opts.fetch ?? fetch;
   const { token } = opts;
-  if (!token.region) throw new Error('região desconhecida: o token do kiro-cli não informa a região');
+  if (!token.region) throw new Error('unknown region: the kiro-cli token does not include a region');
   const base = `${managementHost(token.region)}/ListAvailableModels`;
 
   const models: KiroModel[] = [];
@@ -126,7 +129,7 @@ export async function listAvailableModels(opts: ListOptions): Promise<ModelList>
       signal: opts.signal,
     });
     if (!res.ok) {
-      throw new KiroApiError(res.status, `ListAvailableModels: HTTP ${res.status}: ${await errorMessage(res)}`);
+      throw new KiroApiError('ListAvailableModels', res.status, await errorMessage(res));
     }
     const body = obj(await res.json()) ?? {};
     for (const raw of Array.isArray(body.models) ? body.models : []) {
@@ -144,7 +147,7 @@ export async function listAvailableModels(opts: ListOptions): Promise<ModelList>
 }
 
 // ---------------------------------------------------------------------------
-// Conversão para o formato do VS Code (estrutural: LanguageModelChatInformation).
+// Conversion to the VS Code format (structural: LanguageModelChatInformation).
 // ---------------------------------------------------------------------------
 
 export interface ChatModelInfo {
@@ -158,9 +161,9 @@ export interface ChatModelInfo {
   maxOutputTokens: number;
   capabilities: { imageInput: boolean; toolCalling: boolean };
   /**
-   * API PROPOSTA (ausente do @types/vscode 1.140): o VS Code 1.142 aceita este campo sem exigir
-   * enabledApiProposals e mostra as opções no seletor de modelos. Se deixar de funcionar, vale a
-   * setting kirorelay.reasoningEffort.
+   * PROPOSED API (not in @types/vscode 1.140): VS Code 1.142 accepts this field without
+   * enabledApiProposals and shows the options in the model picker. If it stops working, the
+   * kirorelay.reasoningEffort setting still applies.
    */
   configurationSchema?: Record<string, unknown>;
 }
@@ -171,9 +174,14 @@ function formatRate(m: KiroModel): string | undefined {
   return `${m.rateMultiplier}x ${unit}`.trim();
 }
 
-export function toChatModelInfo(m: KiroModel, defaultModelId?: string): ChatModelInfo {
+/** `defaultModelNote` is appended to the tooltip of the default model (localized by the caller). */
+export function toChatModelInfo(
+  m: KiroModel,
+  defaultModelId?: string,
+  defaultModelNote = 'Default Kiro model.',
+): ChatModelInfo {
   const rate = formatRate(m);
-  const tooltip = [m.description, m.id === defaultModelId ? 'Modelo padrão do Kiro.' : undefined]
+  const tooltip = [m.description, m.id === defaultModelId ? defaultModelNote : undefined]
     .filter(Boolean)
     .join('\n');
   return {
@@ -191,11 +199,11 @@ export function toChatModelInfo(m: KiroModel, defaultModelId?: string): ChatMode
 }
 
 // ---------------------------------------------------------------------------
-// Cache com TTL. Em falha, mantém a última lista boa.
+// Cache with a TTL. On failure, keeps the last good list.
 // ---------------------------------------------------------------------------
 
 export interface CatalogOptions {
-  /** forceReload: relê as credenciais do kiro-cli (usado após um 403). */
+  /** forceReload: re-reads the kiro-cli credentials (used after a 403). */
   getToken: (opts?: { forceReload?: boolean }) => Promise<AccessToken>;
   userAgent: string;
   ttlMs?: number;
@@ -222,8 +230,8 @@ export class ModelCatalog {
   }
 
   /**
-   * Devolve a lista em cache se estiver fresca; senão busca de novo.
-   * Se a busca falhar e houver lista anterior, devolve a anterior e registra o erro.
+   * Returns the cached list if it is fresh; otherwise fetches it again.
+   * If the fetch fails and there is a previous list, returns that one and logs the error.
    */
   async get(opts: { force?: boolean } = {}): Promise<ModelList> {
     if (!opts.force && this.cached && this.now() - this.cached.at < this.ttlMs) {
@@ -235,7 +243,7 @@ export class ModelCatalog {
     return this.inflight;
   }
 
-  /** 403 costuma ser token vencido ou renovado pelo kiro-cli: relê as credenciais e tenta uma vez. */
+  /** A 403 usually means the token expired or kiro-cli renewed it: re-read credentials and retry once. */
   private async listWithRetryOn403(): Promise<ModelList> {
     const call = async (forceReload: boolean) =>
       listAvailableModels({
@@ -247,7 +255,7 @@ export class ModelCatalog {
       return await call(false);
     } catch (e) {
       if (!(e instanceof KiroApiError) || e.status !== 403) throw e;
-      this.opts.log?.('catálogo: HTTP 403, relendo credenciais e tentando de novo');
+      this.opts.log?.('catalog: HTTP 403, re-reading credentials and retrying');
       return call(true);
     }
   }
@@ -255,13 +263,13 @@ export class ModelCatalog {
   private async fetchList(): Promise<ModelList> {
     try {
       const list = await this.listWithRetryOn403();
-      if (list.models.length === 0) throw new Error('o catálogo de modelos veio vazio');
+      if (list.models.length === 0) throw new Error('the model catalog came back empty');
       this.cached = { list, at: this.now() };
-      this.opts.log?.(`catálogo: ${list.models.length} modelos (padrão: ${list.defaultModelId ?? '?'})`);
+      this.opts.log?.(`catalog: ${list.models.length} models (default: ${list.defaultModelId ?? '?'})`);
       return list;
     } catch (e) {
       if (this.cached) {
-        this.opts.log?.(`catálogo: falha ao atualizar, mantendo lista anterior: ${(e as Error).message}`);
+        this.opts.log?.(`catalog: refresh failed, keeping the previous list: ${(e as Error).message}`);
         return this.cached.list;
       }
       throw e;

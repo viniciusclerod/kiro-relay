@@ -1,5 +1,8 @@
-// Atenção: sintaxe apagável apenas (sem enums nem parameter properties),
-// para que os testes rodem direto no Node com type stripping.
+// Erasable syntax only (no enums, no parameter properties), so tests run
+// directly on Node with type stripping.
+//
+// Messages are in English and are used in logs and diagnostics. The UI
+// (extension.ts) shows localized messages based on `code` and the error fields.
 
 export class KiroAuthError extends Error {
   readonly code: string;
@@ -11,24 +14,22 @@ export class KiroAuthError extends Error {
   }
 }
 
-/** Nenhuma credencial utilizável foi encontrada em nenhuma fonte. */
+/** No usable credential was found in any source. */
 export class NotLoggedInError extends KiroAuthError {
   readonly details: string[];
 
   constructor(details: string[]) {
-    super(
-      'not-logged-in',
-      'Nenhuma credencial do kiro-cli encontrada. Rode "kiro-cli login" e tente novamente.',
-    );
+    super('not-logged-in', 'No kiro-cli credentials found. Run "kiro-cli login" and try again.');
     this.name = 'NotLoggedInError';
     this.details = details;
   }
 }
 
 /**
- * Há credencial, mas o access token venceu (ou está dentro da margem) e o
- * kiro-cli ainda não o renovou. A extensão NÃO renova sozinha: os refresh
- * tokens do Kiro são de uso único, e renovar por fora pode deslogar o kiro-cli.
+ * There is a credential, but the access token has expired (or is within the
+ * leeway) and kiro-cli has not renewed it yet. The extension does NOT renew it
+ * itself: Kiro refresh tokens may be single-use, and renewing from outside could
+ * sign kiro-cli out.
  */
 export class TokenExpiredError extends KiroAuthError {
   readonly expiredAt: Date;
@@ -37,8 +38,8 @@ export class TokenExpiredError extends KiroAuthError {
   constructor(expiredAt: Date, source: string) {
     super(
       'token-expired',
-      `O token do kiro-cli expirou em ${expiredAt.toISOString()} (fonte: ${source}). ` +
-        'Use o kiro-cli (ou rode "kiro-cli login") para renová-lo e tente novamente.',
+      `The kiro-cli token expired at ${expiredAt.toISOString()} (source: ${source}). ` +
+        'Use kiro-cli (or run "kiro-cli login") to renew it and try again.',
     );
     this.name = 'TokenExpiredError';
     this.expiredAt = expiredAt;
@@ -46,13 +47,13 @@ export class TokenExpiredError extends KiroAuthError {
   }
 }
 
-/** node:sqlite indisponível no runtime atual. */
+/** node:sqlite is not available in the current runtime. */
 export class SqliteUnavailableError extends KiroAuthError {
   constructor(cause: unknown) {
     super(
       'sqlite-unavailable',
-      'O módulo node:sqlite não está disponível neste runtime. ' +
-        'Use a fonte "sso-cache" ou me avise para adicionarmos o fallback com sql.js.',
+      'The node:sqlite module is not available in this runtime. ' +
+        'Use the "sso-cache" source, or open an issue so we can add a sql.js fallback.',
       { cause },
     );
     this.name = 'SqliteUnavailableError';

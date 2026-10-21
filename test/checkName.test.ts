@@ -2,12 +2,12 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { classify, normalize, parseMarketplace, parseOpenVsx } from '../scripts/check-name.ts';
 
-test('normalize ignora caixa, espaços e pontuação', () => {
+test('normalize ignores case, spaces and punctuation', () => {
   assert.equal(normalize('Kiro  Tether!'), 'kirotether');
   assert.equal(normalize('kiro-tether'), 'kirotether');
 });
 
-test('classify: exato, parecido e diferente', () => {
+test('classify: exact, similar and different', () => {
   const mk = (id: string, displayName: string) => ({ registry: 'marketplace' as const, id, displayName });
   assert.equal(classify('Kiro Tether', mk('acme.kiro-tether', 'Whatever')).exact, true);
   assert.equal(classify('Kiro Tether', mk('acme.x', 'Kiro-Tether')).exact, true);
@@ -18,7 +18,7 @@ test('classify: exato, parecido e diferente', () => {
   assert.equal(other.exact || other.similar, false);
 });
 
-test('parsers das duas APIs', () => {
+test('parsers for both APIs', () => {
   const m = parseMarketplace({
     results: [{ extensions: [{ extensionName: 'kiro-x', displayName: 'Kiro X', publisher: { publisherName: 'acme' } }] }],
   });

@@ -14,7 +14,7 @@ export interface AccessToken {
 
 export interface TokenProviderOptions {
   sources: CredentialSource[];
-  /** Margem antes do vencimento em que o token já é considerado inválido. */
+  /** Margin before expiry at which the token is already treated as invalid. */
   leewayMs?: number;
   now?: () => number;
   log?: Logger;
@@ -33,11 +33,11 @@ function toAccessToken(c: Credentials): AccessToken {
 }
 
 /**
- * Provedor de access token COOPERATIVO com o kiro-cli:
- *  - só lê; nunca renova nem grava (refresh tokens do Kiro são de uso único);
- *  - mantém o token em memória até perto do vencimento e então RELÊ as fontes,
- *    porque o kiro-cli pode já tê-lo renovado;
- *  - se não houver token válido, lança erro orientando o usuário a usar o kiro-cli.
+ * Access token provider that COOPERATES with kiro-cli:
+ *  - read-only; never renews or writes (Kiro refresh tokens may be single-use);
+ *  - keeps the token in memory until close to expiry and then RE-READS the sources,
+ *    because kiro-cli may have renewed it already;
+ *  - if there is no valid token, throws an error telling the user to use kiro-cli.
  */
 export class KiroCliTokenProvider {
   private readonly sources: CredentialSource[];
@@ -54,7 +54,7 @@ export class KiroCliTokenProvider {
     this.log = opts.log ?? (() => {});
   }
 
-  /** Descarta o cache (ex.: depois de um 401/403 do backend). */
+  /** Drops the cache (e.g. after a 401/403 from the backend). */
   invalidate(): void {
     this.cached = undefined;
   }
@@ -63,7 +63,7 @@ export class KiroCliTokenProvider {
     if (!opts.forceReload && this.cached && this.isUsable(this.cached)) {
       return toAccessToken(this.cached);
     }
-    // single-flight: chamadas concorrentes compartilham a mesma leitura
+    // single-flight: concurrent calls share the same read
     this.inflight ??= this.reload().finally(() => {
       this.inflight = undefined;
     });
@@ -83,7 +83,7 @@ export class KiroCliTokenProvider {
       try {
         result = await source.load();
       } catch (e) {
-        notes.push(`[${source.id}] erro: ${(e as Error).message}`);
+        notes.push(`[${source.id}] error: ${(e as Error).message}`);
         continue;
       }
       for (const n of result.notes) notes.push(`[${source.id}] ${n}`);
@@ -91,7 +91,7 @@ export class KiroCliTokenProvider {
       for (const c of result.credentials) {
         if (this.isUsable(c)) {
           this.cached = c;
-          this.log(`token válido de ${c.source}`);
+          this.log(`valid token from ${c.source}`);
           return toAccessToken(c);
         }
         if (!expiredBest || c.expiresAt > expiredBest.expiresAt) expiredBest = c;

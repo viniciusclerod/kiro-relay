@@ -1,10 +1,10 @@
-// Consulta o VS Code Marketplace e o Open VSX (registro usado pelo Kiro IDE)
-// para ver se já existem extensões parecidas com um nome candidato.
+// Queries the VS Code Marketplace and Open VSX (the registry used by the Kiro IDE)
+// to see whether extensions similar to a candidate name already exist.
 //
-// Uso:  npm run check-name -- "Kiro Tether" "Kiro Relay"
+// Usage:  npm run check-name -- "Kiro Tether" "Kiro Relay"
 //
-// Atenção: "nenhum resultado" NÃO prova disponibilidade (busca é aproximada e a
-// API pode falhar). A prova final é reservar o publisher/ID ao publicar.
+// Note: "no results" does NOT prove availability (search is approximate and the
+// API may fail). The final proof is reserving the publisher/ID when publishing.
 import { pathToFileURL } from 'node:url';
 
 export type Registry = 'marketplace' | 'open-vsx';
@@ -93,7 +93,7 @@ async function queryOpenVsx(text: string): Promise<Hit[]> {
 
 async function main(names: string[]): Promise<number> {
   if (names.length === 0) {
-    console.error('Uso: npm run check-name -- "Nome A" "Nome B"');
+    console.error('Usage: npm run check-name -- "Name A" "Name B"');
     return 2;
   }
   let anyFailure = false;
@@ -108,15 +108,15 @@ async function main(names: string[]): Promise<number> {
         const exact = hits.filter((h) => h.exact);
         const similar = hits.filter((h) => h.similar);
         if (exact.length) {
-          console.log(`${label}: JÁ EXISTE -> ${exact.map((h) => `${h.id} ("${h.displayName}")`).join(', ')}`);
+          console.log(`${label}: ALREADY EXISTS -> ${exact.map((h) => `${h.id} ("${h.displayName}")`).join(', ')}`);
         } else if (similar.length) {
-          console.log(`${label}: parecidos -> ${similar.map((h) => `${h.id} ("${h.displayName}")`).join(', ')}`);
+          console.log(`${label}: similar -> ${similar.map((h) => `${h.id} ("${h.displayName}")`).join(', ')}`);
         } else {
-          console.log(`${label}: nenhum nome igual ou parecido entre ${hits.length} resultado(s)`);
+          console.log(`${label}: no equal or similar name among ${hits.length} result(s)`);
         }
       } catch (e) {
         anyFailure = true;
-        console.log(`${label}: falha ao consultar (${(e as Error).message}); não conclua nada`);
+        console.log(`${label}: query failed (${(e as Error).message}); do not conclude anything`);
       }
     }
   }

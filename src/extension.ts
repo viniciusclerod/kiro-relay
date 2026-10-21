@@ -2,11 +2,14 @@ import * as vscode from 'vscode';
 import { runDiagnostics } from './auth/diagnose.ts';
 import { KiroAuthError, NotLoggedInError, TokenExpiredError } from './auth/errors.ts';
 import { createAuth, type AuthConfig, type SourceId } from './auth/factory.ts';
-import { formatDuration } from './auth/redact.ts';
-import { ModelCatalog, toChatModelInfo, type ChatModelInfo } from './models/catalog.ts';
-import { resolveEffort } from './models/effort.ts';
+import { formatHoursMinutes } from './auth/redact.ts';
+import { KiroApiError, ModelCatalog, toChatModelInfo, type ChatModelInfo } from './models/catalog.ts';
+import { resolveEffort, type EffortSource } from './models/effort.ts';
 
-/** Estimativa grosseira (~4 caracteres por token); o Kiro não expõe tokenizador. */
+// UI text goes through vscode.l10n.t (English source, translations in l10n/).
+// Logs and the diagnostics report stay in English.
+
+/** Rough estimate (~4 characters per token); Kiro does not expose a tokenizer. */
 function estimateTokens(input: string | vscode.LanguageModelChatRequestMessage): number {
   const text =
     typeof input === 'string'
@@ -30,6 +33,37 @@ function readConfig(): { auth: AuthConfig; cliPath: string } {
   };
 }
 
+/** Localized, user-facing description of an error. */
+function describeError(e: unknown): string {
+  if (e instanceof TokenExpiredError) {
+    return vscode.l10n.t(
+      'The kiro-cli token expired at {0}. Use kiro-cli (or run "kiro-cli login") to renew it.',
+      e.expiredAt.toLocaleString(),
+    );
+  }
+  if (e instanceof NotLoggedInError) {
+    return vscode.l10n.t('No kiro-cli credentials found. Run "kiro-cli login" and try again.');
+  }
+  if (e instanceof KiroAuthError && e.code === 'sqlite-unavailable') {
+    return vscode.l10n.t('The node:sqlite module is not available in this VS Code. Use the "sso-cache" source.');
+  }
+  if (e instanceof KiroApiError) {
+    return vscode.l10n.t('The Kiro service answered HTTP {0}: {1}', e.status, e.detail);
+  }
+  return e instanceof Error ? e.message : String(e);
+}
+
+function effortSourceLabel(source: EffortSource): string {
+  switch (source) {
+    case 'picker':
+      return vscode.l10n.t('model picker');
+    case 'setting':
+      return vscode.l10n.t('setting');
+    case 'model-default':
+      return vscode.l10n.t('model default');
+  }
+}
+
 export function activate(context: vscode.ExtensionContext): void {
   const out = vscode.window.createOutputChannel('Kiro Relay');
   const log = (m: string) => out.appendLine(`[${new Date().toISOString()}] ${m}`);
@@ -48,29 +82,31 @@ export function activate(context: vscode.ExtensionContext): void {
   const modelsChanged = new vscode.EventEmitter<void>();
   let lastTokenOk: boolean | undefined;
 
+  const cannotListModels = (e: unknown) =>
+    vscode.l10n.t('Kiro: could not list the models. {0}', describeError(e));
+
   const provider: vscode.LanguageModelChatProvider<ChatModelInfo> = {
     onDidChangeLanguageModelChatInformation: modelsChanged.event,
 
     async provideLanguageModelChatInformation(options) {
       try {
         const list = await catalog.get();
-        return list.models.map((m) => toChatModelInfo(m, list.defaultModelId));
+        const note = vscode.l10n.t('Default Kiro model.');
+        return list.models.map((m) => toChatModelInfo(m, list.defaultModelId, note));
       } catch (e) {
-        const msg = e instanceof Error ? e.message : String(e);
-        log(`catálogo indisponível: ${msg}`);
+        log(`catalog unavailable: ${e instanceof Error ? e.message : String(e)}`);
         if (!options.silent) {
-          void vscode.window
-            .showWarningMessage(`Kiro: não foi possível listar os modelos. ${msg}`, 'Diagnosticar')
-            .then((pick) => {
-              if (pick) void vscode.commands.executeCommand('kirorelay.diagnose');
-            });
+          const diagnoseAction = vscode.l10n.t('Diagnose');
+          void vscode.window.showWarningMessage(cannotListModels(e), diagnoseAction).then((pick) => {
+            if (pick === diagnoseAction) void vscode.commands.executeCommand('kirorelay.diagnose');
+          });
         }
         return [];
       }
     },
 
     async provideLanguageModelChatResponse(model, _messages, options) {
-      // modelConfiguration é API proposta (não está no @types/vscode); o VS Code 1.142 já envia.
+      // modelConfiguration is proposed API (not in @types/vscode); VS Code 1.142 already sends it.
       const modelConfiguration = (options as { modelConfiguration?: Record<string, unknown> })
         .modelConfiguration;
       const kiroModel = (await catalog.get()).models.find((m) => m.id === model.id);
@@ -78,11 +114,19 @@ export function activate(context: vscode.ExtensionContext): void {
         .getConfiguration('kirorelay')
         .get<Record<string, unknown>>('reasoningEffort');
       const effort = resolveEffort(model.id, kiroModel?.effort, modelConfiguration, settings);
-      const effortText = effort.level ? `${effort.level} (${effort.source})` : 'não se aplica';
-      log(`pedido: modelo ${model.id}, esforço ${effortText}, campos ${JSON.stringify(effort.requestFields)}`);
+      log(
+        `request: model ${model.id}, effort ${effort.level ?? 'n/a'} (${effort.source}), ` +
+          `fields ${JSON.stringify(effort.requestFields)}`,
+      );
+      const effortText = effort.level
+        ? `${effort.level} (${effortSourceLabel(effort.source)})`
+        : vscode.l10n.t('not applicable');
       throw new Error(
-        `Kiro Relay: o chat ainda não foi implementado nesta versão (só a listagem de modelos). ` +
-          `Modelo ${model.id}, esforço ${effortText}.`,
+        vscode.l10n.t(
+          'Kiro Relay: chat is not implemented yet in this version (only the model list). Model {0}, effort {1}.',
+          model.id,
+          effortText,
+        ),
       );
     },
 
@@ -95,10 +139,11 @@ export function activate(context: vscode.ExtensionContext): void {
   status.command = 'kirorelay.diagnose';
 
   async function refreshStatus(forceReload = false): Promise<void> {
+    const clickToDiagnose = vscode.l10n.t('Click to diagnose.');
     try {
       const t = await auth.provider.getAccessToken({ forceReload });
-      status.text = `$(check) Kiro ${formatDuration(t.expiresAt.getTime() - Date.now()).replace('expira em ', '')}`;
-      status.tooltip = `Autenticado via ${t.source}\nClique para diagnosticar.`;
+      status.text = `$(check) Kiro ${formatHoursMinutes(t.expiresAt.getTime() - Date.now())}`;
+      status.tooltip = `${vscode.l10n.t('Signed in through {0}.', t.source)}\n${clickToDiagnose}`;
       status.backgroundColor = undefined;
       if (lastTokenOk === false) modelsChanged.fire();
       lastTokenOk = true;
@@ -106,18 +151,16 @@ export function activate(context: vscode.ExtensionContext): void {
       lastTokenOk = false;
       const warn = new vscode.ThemeColor('statusBarItem.warningBackground');
       if (e instanceof TokenExpiredError) {
-        status.text = '$(warning) Kiro: token expirado';
-        status.tooltip = e.message;
+        status.text = `$(warning) ${vscode.l10n.t('Kiro: token expired')}`;
         status.backgroundColor = warn;
       } else if (e instanceof NotLoggedInError) {
-        status.text = '$(warning) Kiro: login necessário';
-        status.tooltip = `${e.message}\nClique para diagnosticar.`;
+        status.text = `$(warning) ${vscode.l10n.t('Kiro: sign-in required')}`;
         status.backgroundColor = warn;
       } else {
-        status.text = '$(error) Kiro: erro';
-        status.tooltip = e instanceof KiroAuthError ? e.message : String(e);
+        status.text = `$(error) ${vscode.l10n.t('Kiro: error')}`;
         status.backgroundColor = new vscode.ThemeColor('statusBarItem.errorBackground');
       }
+      status.tooltip = `${describeError(e)}\n${clickToDiagnose}`;
     }
     status.show();
   }
@@ -128,16 +171,17 @@ export function activate(context: vscode.ExtensionContext): void {
       databaseCandidates: auth.databaseCandidates,
       ssoCacheDir: auth.ssoCacheDir,
       provider: auth.provider,
-      host: { 'vscode': vscode.version, 'app': vscode.env.appName },
+      host: { vscode: vscode.version, app: vscode.env.appName, language: vscode.env.language },
     });
     out.clear();
     out.appendLine(report);
     out.show(true);
+    const copyAction = vscode.l10n.t('Copy report');
     const pick = await vscode.window.showInformationMessage(
-      'Diagnóstico gerado no painel "Kiro Relay". O relatório não contém tokens.',
-      'Copiar relatório',
+      vscode.l10n.t('Diagnostics written to the "Kiro Relay" output panel. The report contains no tokens.'),
+      copyAction,
     );
-    if (pick === 'Copiar relatório') await vscode.env.clipboard.writeText(report);
+    if (pick === copyAction) await vscode.env.clipboard.writeText(report);
     await refreshStatus();
   });
 
@@ -150,19 +194,19 @@ export function activate(context: vscode.ExtensionContext): void {
     try {
       const list = await catalog.get({ force: true });
       modelsChanged.fire();
-      vscode.window.showInformationMessage(`Kiro: ${list.models.length} modelos disponíveis.`);
-    } catch (e) {
-      vscode.window.showWarningMessage(
-        `Kiro: não foi possível listar os modelos. ${e instanceof Error ? e.message : String(e)}`,
+      vscode.window.showInformationMessage(
+        vscode.l10n.t('Kiro: {0} models available.', list.models.length),
       );
+    } catch (e) {
+      vscode.window.showWarningMessage(cannotListModels(e));
     }
   });
 
   const manage = vscode.commands.registerCommand('kirorelay.manage', async () => {
     const items = [
-      { label: '$(refresh) Atualizar lista de modelos', command: 'kirorelay.refreshModels' },
-      { label: '$(key) Recarregar credenciais do kiro-cli', command: 'kirorelay.reloadCredentials' },
-      { label: '$(pulse) Diagnosticar autenticação', command: 'kirorelay.diagnose' },
+      { label: `$(refresh) ${vscode.l10n.t('Refresh model list')}`, command: 'kirorelay.refreshModels' },
+      { label: `$(key) ${vscode.l10n.t('Reload kiro-cli credentials')}`, command: 'kirorelay.reloadCredentials' },
+      { label: `$(pulse) ${vscode.l10n.t('Diagnose authentication')}`, command: 'kirorelay.diagnose' },
     ];
     const pick = await vscode.window.showQuickPick(items, { title: 'Kiro Relay' });
     if (pick) await vscode.commands.executeCommand(pick.command);
@@ -172,7 +216,7 @@ export function activate(context: vscode.ExtensionContext): void {
     auth.provider.invalidate();
     await refreshStatus(true);
     await refreshModels();
-    vscode.window.showInformationMessage(`Kiro: ${status.text.replace(/\$\([^)]+\)\s*/, '')}`);
+    vscode.window.showInformationMessage(status.text.replace(/\$\([^)]+\)\s*/, ''));
   });
 
   const onConfig = vscode.workspace.onDidChangeConfiguration(async (e) => {
@@ -188,9 +232,18 @@ export function activate(context: vscode.ExtensionContext): void {
 
   const registration = vscode.lm.registerLanguageModelChatProvider('kirorelay', provider);
 
-  context.subscriptions.push(out, status, diagnose, reload, refreshModelsCmd, manage, onConfig, {
-    dispose: () => clearInterval(timer),
-  }, registration, modelsChanged);
+  context.subscriptions.push(
+    out,
+    status,
+    diagnose,
+    reload,
+    refreshModelsCmd,
+    manage,
+    onConfig,
+    { dispose: () => clearInterval(timer) },
+    registration,
+    modelsChanged,
+  );
 
   void refreshStatus(true);
 }

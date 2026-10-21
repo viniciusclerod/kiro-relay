@@ -10,9 +10,9 @@ import { fingerprint } from '../src/auth/redact.ts';
 import { KiroCliTokenProvider } from '../src/auth/tokenProvider.ts';
 
 const T0 = Date.parse('2026-10-20T12:00:00Z');
-const SECRETS = ['AT-FICTICIO-xyz', 'RT-FICTICIO-xyz', 'CID-FICTICIO', 'CSECRET-FICTICIO'];
+const SECRETS = ['AT-FAKE-xyz', 'RT-FAKE-xyz', 'CID-FAKE', 'CSECRET-FAKE'];
 
-/** Layout observado no kiro-cli 2.33.0 (login IdC / DeviceCode), com valores fictícios. */
+/** Layout observed in kiro-cli 2.33.0 (IdC / DeviceCode login), with fake values. */
 function makeRealLayoutDb(dir: string): string {
   const file = path.join(dir, 'data.sqlite3');
   const db = new DatabaseSync(file);
@@ -50,7 +50,7 @@ function makeRealLayoutDb(dir: string): string {
   return file;
 }
 
-test('diagnóstico com layout real: agora, tempo restante, fingerprints e client_secret_expires_at', async () => {
+test('diagnostics with the real layout: now, remaining time, fingerprints and client_secret_expires_at', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'kiro-diag-'));
   const dbFile = makeRealLayoutDb(dir);
   const now = () => T0;
@@ -61,7 +61,7 @@ test('diagnóstico com layout real: agora, tempo restante, fingerprints e client
   });
 
   const report = await runDiagnostics({
-    cliPath: path.join(dir, 'nao-existe-kiro-cli'),
+    cliPath: path.join(dir, 'missing-kiro-cli'),
     databaseCandidates: [dbFile],
     ssoCacheDir: path.join(dir, 'sso'),
     host: {},
@@ -69,31 +69,31 @@ test('diagnóstico com layout real: agora, tempo restante, fingerprints e client
     now,
   });
 
-  assert.match(report, /^agora: 2026-10-20T12:00:00\.000Z$/m);
+  assert.match(report, /^now: 2026-10-20T12:00:00\.000Z$/m);
   assert.match(
     report,
-    new RegExp(`access token: fingerprint=${fingerprint(SECRETS[0]!)}, expira=2026-10-20T12:12:30\\.123Z \\(expira em 12 min\\)`),
+    new RegExp(`access token: fingerprint=${fingerprint(SECRETS[0]!)}, expires=2026-10-20T12:12:30\\.123Z \\(expires in 12 min\\)`),
   );
   assert.match(report, new RegExp(`refresh token: fingerprint=${fingerprint(SECRETS[1]!)}`));
   assert.match(report, new RegExp(`client_id: fingerprint=${fingerprint(SECRETS[2]!)}`));
-  assert.match(report, /client_secret_expires_at: 2027-01-18T12:00:00\.987Z \(expira em \d+ h \d{2} min\)/);
-  assert.match(report, /- OK: token válido obtido/);
-  for (const s of SECRETS) assert.ok(!report.includes(s), 'relatório não pode conter segredos');
+  assert.match(report, /client_secret_expires_at: 2027-01-18T12:00:00\.987Z \(expires in \d+ h \d{2} min\)/);
+  assert.match(report, /- OK: got a valid token/);
+  for (const s of SECRETS) assert.ok(!report.includes(s), 'the report must not contain secrets');
 });
 
-test('diagnóstico com token vencido mostra há quanto tempo expirou', async () => {
+test('diagnostics with an expired token show how long ago it expired', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'kiro-diag-'));
   const dbFile = makeRealLayoutDb(dir);
   const now = () => T0 + 20 * 60_000;
   const report = await runDiagnostics({
-    cliPath: path.join(dir, 'nao-existe-kiro-cli'),
+    cliPath: path.join(dir, 'missing-kiro-cli'),
     databaseCandidates: [dbFile],
     ssoCacheDir: path.join(dir, 'sso'),
     host: {},
     provider: new KiroCliTokenProvider({ sources: [new KiroCliDbSource([dbFile])], leewayMs: 0, now }),
     now,
   });
-  assert.match(report, /access token: .*\(expirado há 7 min\)/);
-  assert.match(report, /- FALHA \[/);
+  assert.match(report, /access token: .*\(expired 7 min ago\)/);
+  assert.match(report, /- FAILED \[/);
   for (const s of SECRETS) assert.ok(!report.includes(s));
 });

@@ -4,35 +4,35 @@ export interface Credentials {
   expiresAt: Date;
   region?: string;
   profileArn?: string;
-  /** Valor bruto do campo oauth_flow, se existir (só informativo por enquanto). */
+  /** Raw value of the oauth_flow field, if any (informational only for now). */
   oauthFlow?: string;
-  /** Existe um registro de cliente OIDC (clientId/clientSecret) associado? */
+  /** Is there an associated OIDC client registration (clientId/clientSecret)? */
   hasClientRegistration: boolean;
-  /** Origem legível, ex.: "kiro-cli-db:kirocli:social:token". */
+  /** Human-readable origin, e.g. "kiro-cli-db:kirocli:social:token". */
   source: string;
 }
 
 /**
- * O kiro-cli grava timestamps RFC3339 com nanossegundos (às vezes com dígitos
- * demais). Date só tem milissegundos, então truncamos a fração em 3 dígitos.
+ * kiro-cli writes RFC 3339 timestamps with nanoseconds (sometimes with too many
+ * digits). Date only has milliseconds, so the fraction is truncated to 3 digits.
  */
 export function parseTimestamp(value: unknown): Date {
   if (typeof value === 'number' && Number.isFinite(value)) {
-    // epoch em segundos (< 1e12) ou milissegundos
+    // epoch in seconds (< 1e12) or milliseconds
     return new Date(value < 1e12 ? value * 1000 : value);
   }
   if (typeof value !== 'string' || value.trim() === '') {
-    throw new Error('timestamp ausente ou com tipo inesperado');
+    throw new Error('timestamp missing or of an unexpected type');
   }
   const normalized = value.trim().replace(/(\.\d{3})\d+/, '$1');
   const date = new Date(normalized);
   if (Number.isNaN(date.getTime())) {
-    throw new Error(`timestamp inválido: ${value}`);
+    throw new Error(`invalid timestamp: ${value}`);
   }
   return date;
 }
 
-/** Lê o primeiro campo existente entre variações snake_case/camelCase. */
+/** Reads the first present field among snake_case/camelCase variants. */
 export function pick(obj: Record<string, unknown>, ...names: string[]): unknown {
   for (const name of names) {
     const v = obj[name];
@@ -50,13 +50,13 @@ export function regionFromArn(arn: string | undefined): string | undefined {
   return str(arn.split(':')[3]);
 }
 
-/** Converte o objeto JSON de um token (kiro-cli ou Kiro IDE) em Credentials. */
+/** Converts a token JSON object (kiro-cli or Kiro IDE) into Credentials. */
 export function parseTokenObject(obj: Record<string, unknown>, source: string): Credentials {
   const accessToken = str(pick(obj, 'access_token', 'accessToken'));
-  if (!accessToken) throw new Error('campo access_token ausente');
+  if (!accessToken) throw new Error('access_token field missing');
 
   const expiresRaw = pick(obj, 'expires_at', 'expiresAt');
-  if (expiresRaw === undefined) throw new Error('campo expires_at ausente');
+  if (expiresRaw === undefined) throw new Error('expires_at field missing');
 
   const profileArn = str(pick(obj, 'profile_arn', 'profileArn'));
   const region = str(pick(obj, 'region')) ?? regionFromArn(profileArn);
@@ -78,15 +78,15 @@ export function parseTokenRecord(raw: string, source: string): Credentials {
   try {
     parsed = JSON.parse(raw);
   } catch {
-    throw new Error('valor não é JSON válido');
+    throw new Error('value is not valid JSON');
   }
   if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
-    throw new Error('valor JSON não é um objeto');
+    throw new Error('JSON value is not an object');
   }
   return parseTokenObject(parsed as Record<string, unknown>, source);
 }
 
-/** Extrai o ARN do perfil do valor gravado em state["api.codewhisperer.profile"]. */
+/** Extracts the profile ARN from the value stored in state["api.codewhisperer.profile"]. */
 export function extractProfileArn(raw: string): string | undefined {
   const trimmed = raw.trim();
   if (trimmed.startsWith('arn:')) return trimmed;
@@ -97,7 +97,7 @@ export function extractProfileArn(raw: string): string | undefined {
       return str(pick(parsed as Record<string, unknown>, 'arn', 'profile_arn', 'profileArn'));
     }
   } catch {
-    // ignora: formato desconhecido
+    // ignore: unknown format
   }
   return undefined;
 }

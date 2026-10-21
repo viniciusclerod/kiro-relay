@@ -1,9 +1,9 @@
 import type { Credentials } from './credentials.ts';
 
 export interface LoadResult {
-  /** Em ordem de prioridade dentro da fonte. */
+  /** In priority order within the source. */
   credentials: Credentials[];
-  /** Observações legíveis (ex.: "banco não encontrado em ..."). Nunca contêm segredos. */
+  /** Human-readable notes (e.g. "database not found at ..."). Never contain secrets. */
   notes: string[];
 }
 

@@ -4,7 +4,7 @@ import * as path from 'node:path';
 import { SqliteUnavailableError } from './errors.ts';
 
 export interface SnapshotDb {
-  /** Executa um SELECT e devolve todas as linhas. */
+  /** Runs a SELECT and returns all rows. */
   all(sql: string, ...params: unknown[]): Record<string, unknown>[];
   tables(): string[];
 }
@@ -38,15 +38,15 @@ async function copyIfExists(from: string, to: string): Promise<void> {
 }
 
 /**
- * Abre um SNAPSHOT do banco: copia o arquivo (e o -wal, se existir) para um
- * diretório temporário privado e abre a cópia. O original nunca é aberto, então
- * nunca criamos -shm/-wal nem travamos nada ao lado do banco do kiro-cli, e o
- * SQLite real aplica o WAL corretamente (ao contrário de um leitor "só do
- * arquivo principal", que pode devolver um token já substituído).
+ * Opens a SNAPSHOT of the database: copies the file (and the -wal, if any) to a
+ * private temporary directory and opens the copy. The original is never opened,
+ * so we never create -shm/-wal files or lock anything next to kiro-cli's
+ * database, and real SQLite applies the WAL correctly (unlike a reader of "only
+ * the main file", which could return a token that was already replaced).
  *
- * O WAL é copiado ANTES do arquivo principal: se um checkpoint ocorrer no meio,
- * o principal copiado já contém tudo; reaplicar frames antigos é inofensivo.
- * A cópia (que contém tokens) é apagada ao final, mesmo em caso de erro.
+ * The WAL is copied BEFORE the main file: if a checkpoint happens in between,
+ * the copied main file already has everything; replaying old frames is harmless.
+ * The copy (which contains tokens) is deleted at the end, even on error.
  */
 export async function withSnapshot<T>(
   dbPath: string,
@@ -81,7 +81,7 @@ export async function withSnapshot<T>(
         }
       } catch (e) {
         lastError = e;
-        // Cópia possivelmente inconsistente (escrita concorrente do kiro-cli): tenta de novo.
+        // Possibly inconsistent copy (concurrent write by kiro-cli): try again.
         await fs.rm(dir, { recursive: true, force: true });
         await fs.mkdir(dir, { mode: 0o700 });
       }

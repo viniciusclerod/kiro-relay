@@ -1,19 +1,19 @@
-// Esforço de raciocínio por modelo. Módulo puro: sem vscode.
+// Reasoning effort per model. Pure module: no vscode.
 //
-// O catálogo do Kiro descreve os campos extras de cada modelo em additionalModelRequestFieldsSchema.
-// Observado em 2026-10-21: Claude usa `output_config.effort`, GPT usa `reasoning.effort`.
+// The Kiro catalog describes each model's extra fields in additionalModelRequestFieldsSchema.
+// Observed on 2026-10-21: Claude uses `output_config.effort`, GPT uses `reasoning.effort`.
 
-/** Chave da opção no configurationSchema do VS Code (aparece no seletor de modelos). */
+/** Option key in the VS Code configurationSchema (shown in the model picker). */
 export const EFFORT_OPTION = 'reasoningEffort';
 
 const EFFORT_PARENTS = ['output_config', 'reasoning'] as const;
 export type EffortParent = (typeof EFFORT_PARENTS)[number];
 
 export interface EffortSupport {
-  /** Onde o nível vai em additionalModelRequestFields. */
+  /** Where the level goes in additionalModelRequestFields. */
   parent: EffortParent;
   levels: string[];
-  /** Padrão do backend para o modelo, se informado. */
+  /** The backend's default for the model, if given. */
   default?: string;
 }
 
@@ -23,7 +23,7 @@ function obj(v: unknown): Record<string, unknown> | undefined {
     : undefined;
 }
 
-/** Extrai os níveis de esforço do additionalModelRequestFieldsSchema, se houver. */
+/** Extracts the effort levels from additionalModelRequestFieldsSchema, if any. */
 export function parseEffortSupport(schema: Record<string, unknown> | undefined): EffortSupport | undefined {
   const props = obj(schema?.properties);
   if (!props) return undefined;
@@ -49,9 +49,9 @@ const LABELS: Record<string, string> = {
 };
 
 /**
- * configurationSchema no formato que o VS Code 1.142 transforma em menu no seletor de modelos.
- * O painel "Details" do seletor só mostra propriedades com `group` "navigation" (ou "tokens") e enum com 2+ itens;
- * "navigation" é o grupo que o próprio VS Code usa para reasoningEffort.
+ * configurationSchema in the format VS Code 1.142 turns into a menu in the model picker.
+ * The picker's "Details" panel only shows properties with `group` "navigation" (or "tokens") and an enum
+ * of 2+ items; "navigation" is the group VS Code itself uses for reasoningEffort.
  */
 export function effortConfigurationSchema(e: EffortSupport): Record<string, unknown> {
   return {
@@ -69,21 +69,21 @@ export function effortConfigurationSchema(e: EffortSupport): Record<string, unkn
   };
 }
 
-export type EffortSource = 'seletor' | 'setting' | 'padrão do modelo';
+export type EffortSource = 'picker' | 'setting' | 'model-default';
 
 export interface ResolvedEffort {
   level?: string;
   source: EffortSource;
-  /** Para mesclar em additionalModelRequestFields; vazio quando vale o padrão do backend. */
+  /** To merge into additionalModelRequestFields; empty when the backend default applies. */
   requestFields: Record<string, unknown>;
 }
 
 /**
- * Decide o nível: escolha no seletor (modelConfiguration) > setting kirorelay.reasoningEffort >
- * padrão do backend (nada é enviado). Níveis que o modelo não aceita são ignorados.
+ * Picks the level: choice in the picker (modelConfiguration) > kirorelay.reasoningEffort setting >
+ * backend default (nothing is sent). Levels the model does not accept are ignored.
  *
- * O VS Code preenche modelConfiguration com o `default` do schema mesmo sem escolha do usuário,
- * então um valor igual ao padrão não conta como escolha explícita e não se sobrepõe à setting.
+ * VS Code fills modelConfiguration with the schema `default` even when the user chose nothing,
+ * so a value equal to the default does not count as an explicit choice and does not override the setting.
  */
 export function resolveEffort(
   modelId: string,
@@ -91,17 +91,17 @@ export function resolveEffort(
   modelConfiguration: Readonly<Record<string, unknown>> | undefined,
   settings: Readonly<Record<string, unknown>> | undefined,
 ): ResolvedEffort {
-  if (!support) return { source: 'padrão do modelo', requestFields: {} };
+  if (!support) return { source: 'model-default', requestFields: {} };
 
   const picked = modelConfiguration?.[EFFORT_OPTION];
   const candidates: Array<[unknown, EffortSource]> = [
-    [picked === support.default ? undefined : picked, 'seletor'],
+    [picked === support.default ? undefined : picked, 'picker'],
     [settings?.[modelId], 'setting'],
-    [picked, 'seletor'],
+    [picked, 'picker'],
   ];
   for (const [value, source] of candidates) {
     if (typeof value !== 'string' || !support.levels.includes(value)) continue;
     return { level: value, source, requestFields: { [support.parent]: { effort: value } } };
   }
-  return { level: support.default, source: 'padrão do modelo', requestFields: {} };
+  return { level: support.default, source: 'model-default', requestFields: {} };
 }

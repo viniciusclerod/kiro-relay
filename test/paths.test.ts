@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { defaultDatabaseCandidates, expandHome } from '../src/auth/paths.ts';
 
-test('candidatos por plataforma', () => {
+test('candidates per platform', () => {
   assert.deepEqual(defaultDatabaseCandidates('linux', {}, '/home/u'), [
     '/home/u/.local/share/kiro-cli/data.sqlite3',
     '/home/u/.local/share/amazon-q/data.sqlite3',

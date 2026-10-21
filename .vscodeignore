@@ -9,3 +9,5 @@ esbuild.mjs
 .github/**
 scripts/**
 CONTRIBUTING.md
+CLAUDE.md
+.gitignore

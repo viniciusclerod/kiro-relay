@@ -34,7 +34,7 @@ class FakeSource implements CredentialSource {
 
 const MIN = 60_000;
 
-test('devolve token válido e usa o cache sem reler a fonte', async () => {
+test('returns a valid token and uses the cache without re-reading the source', async () => {
   const s = new FakeSource('a', { credentials: [cred('T1', 60 * MIN)], notes: [] });
   const p = new KiroCliTokenProvider({ sources: [s], now: () => T0 });
   assert.equal((await p.getAccessToken()).token, 'T1');
@@ -42,7 +42,7 @@ test('devolve token válido e usa o cache sem reler a fonte', async () => {
   assert.equal(s.loads, 1);
 });
 
-test('forceReload e invalidate forçam nova leitura', async () => {
+test('forceReload and invalidate force a new read', async () => {
   const s = new FakeSource('a', { credentials: [cred('T1', 60 * MIN)], notes: [] });
   const p = new KiroCliTokenProvider({ sources: [s], now: () => T0 });
   await p.getAccessToken();
@@ -52,19 +52,19 @@ test('forceReload e invalidate forçam nova leitura', async () => {
   assert.equal(s.loads, 3);
 });
 
-test('perto do vencimento relê a fonte e pega o token renovado pelo kiro-cli', async () => {
+test('close to expiry re-reads the source and picks up the token renewed by kiro-cli', async () => {
   let now = T0;
   const s = new FakeSource('a', { credentials: [cred('OLD', 10 * MIN)], notes: [] });
   const p = new KiroCliTokenProvider({ sources: [s], leewayMs: 5 * MIN, now: () => now });
   assert.equal((await p.getAccessToken()).token, 'OLD');
 
-  now = T0 + 6 * MIN; // dentro da margem de 5 min
-  s.result = { credentials: [cred('NEW', 66 * MIN)], notes: [] }; // kiro-cli renovou
+  now = T0 + 6 * MIN; // inside the 5 min leeway
+  s.result = { credentials: [cred('NEW', 66 * MIN)], notes: [] }; // kiro-cli renewed it
   assert.equal((await p.getAccessToken()).token, 'NEW');
   assert.equal(s.loads, 2);
 });
 
-test('token vencido e ninguém renovou: TokenExpiredError (nunca renova sozinho)', async () => {
+test('expired token nobody renewed: TokenExpiredError (never renews by itself)', async () => {
   const s = new FakeSource('a', { credentials: [cred('OLD', -MIN)], notes: [] });
   const p = new KiroCliTokenProvider({ sources: [s], now: () => T0 });
   await assert.rejects(p.getAccessToken(), (e) => {
@@ -74,24 +74,24 @@ test('token vencido e ninguém renovou: TokenExpiredError (nunca renova sozinho)
   });
 });
 
-test('dentro da margem conta como vencido', async () => {
+test('inside the leeway counts as expired', async () => {
   const s = new FakeSource('a', { credentials: [cred('T', 2 * MIN)], notes: [] });
   const p = new KiroCliTokenProvider({ sources: [s], leewayMs: 5 * MIN, now: () => T0 });
   await assert.rejects(p.getAccessToken(), TokenExpiredError);
 });
 
-test('sem credenciais: NotLoggedInError agrega as notas de todas as fontes', async () => {
-  const a = new FakeSource('db', { credentials: [], notes: ['banco não encontrado'] });
-  const b = new FakeSource('sso', new Error('permissão negada'));
+test('no credentials: NotLoggedInError aggregates the notes of every source', async () => {
+  const a = new FakeSource('db', { credentials: [], notes: ['database not found'] });
+  const b = new FakeSource('sso', new Error('permission denied'));
   const p = new KiroCliTokenProvider({ sources: [a, b], now: () => T0 });
   await assert.rejects(p.getAccessToken(), (e) => {
     assert.ok(e instanceof NotLoggedInError);
-    assert.deepEqual(e.details, ['[db] banco não encontrado', '[sso] erro: permissão negada']);
+    assert.deepEqual(e.details, ['[db] database not found', '[sso] error: permission denied']);
     return true;
   });
 });
 
-test('ordem das fontes: a primeira com token válido vence; vencido numa fonte cai para a próxima', async () => {
+test('source order: the first one with a valid token wins; an expired one falls through to the next', async () => {
   const a = new FakeSource('db', { credentials: [cred('EXPIRED', -MIN, 'db')], notes: [] });
   const b = new FakeSource('sso', { credentials: [cred('VALID', 30 * MIN, 'sso')], notes: [] });
   const p = new KiroCliTokenProvider({ sources: [a, b], now: () => T0 });
@@ -100,7 +100,7 @@ test('ordem das fontes: a primeira com token válido vence; vencido numa fonte c
   assert.equal(t.source, 'sso');
 });
 
-test('chamadas concorrentes compartilham uma única leitura', async () => {
+test('concurrent calls share a single read', async () => {
   const s = new FakeSource('a', { credentials: [cred('T', 60 * MIN)], notes: [] });
   const p = new KiroCliTokenProvider({ sources: [s], now: () => T0 });
   const r = await Promise.all([p.getAccessToken(), p.getAccessToken(), p.getAccessToken()]);

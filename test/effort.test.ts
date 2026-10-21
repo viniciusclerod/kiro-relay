@@ -8,7 +8,7 @@ import {
   resolveEffort,
 } from '../src/models/effort.ts';
 
-// Schemas como vieram do ListAvailableModels em 2026-10-21.
+// Schemas as returned by ListAvailableModels on 2026-10-21.
 const CLAUDE_SCHEMA = {
   type: 'object',
   properties: {
@@ -43,7 +43,7 @@ const GPT_SCHEMA = {
   additionalProperties: false,
 };
 
-test('parseEffortSupport: Claude (output_config), GPT (reasoning) e modelos sem esforço', () => {
+test('parseEffortSupport: Claude (output_config), GPT (reasoning) and models without effort', () => {
   assert.deepEqual(parseEffortSupport(CLAUDE_SCHEMA), {
     parent: 'output_config',
     levels: ['low', 'medium', 'high', 'xhigh', 'max'],
@@ -56,14 +56,14 @@ test('parseEffortSupport: Claude (output_config), GPT (reasoning) e modelos sem 
   });
   assert.equal(parseEffortSupport(undefined), undefined);
   assert.equal(parseEffortSupport({ type: 'object', properties: { thinking: {} } }), undefined);
-  // default fora do enum é ignorado
+  // a default outside the enum is ignored
   const odd = parseEffortSupport({
     properties: { reasoning: { properties: { effort: { enum: ['low', 1, ''], default: 'ultra' } } } },
   });
   assert.deepEqual(odd, { parent: 'reasoning', levels: ['low'], default: undefined });
 });
 
-test('effortConfigurationSchema: formato lido pelo seletor do VS Code', () => {
+test('effortConfigurationSchema: format read by the VS Code model picker', () => {
   const schema = effortConfigurationSchema(parseEffortSupport(CLAUDE_SCHEMA)!);
   assert.deepEqual(schema, {
     type: 'object',
@@ -80,20 +80,20 @@ test('effortConfigurationSchema: formato lido pelo seletor do VS Code', () => {
   });
 });
 
-test('toChatModelInfo inclui configurationSchema só para modelos com esforço', () => {
+test('toChatModelInfo includes configurationSchema only for models with effort', () => {
   const withEffort = parseModel({ modelId: 'claude-x', additionalModelRequestFieldsSchema: CLAUDE_SCHEMA })!;
   const without = parseModel({ modelId: 'glm-x', additionalModelRequestFieldsSchema: null })!;
   assert.ok(toChatModelInfo(withEffort).configurationSchema);
   assert.equal('configurationSchema' in toChatModelInfo(without), false);
 });
 
-test('resolveEffort: precedência seletor > setting > padrão', () => {
+test('resolveEffort: precedence picker > setting > default', () => {
   const claude = parseEffortSupport(CLAUDE_SCHEMA);
   const gpt = parseEffortSupport(GPT_SCHEMA);
 
   assert.deepEqual(resolveEffort('claude-x', claude, { [EFFORT_OPTION]: 'max' }, { 'claude-x': 'low' }), {
     level: 'max',
-    source: 'seletor',
+    source: 'picker',
     requestFields: { output_config: { effort: 'max' } },
   });
   assert.deepEqual(resolveEffort('gpt-x', gpt, undefined, { 'gpt-x': 'none' }), {
@@ -103,28 +103,28 @@ test('resolveEffort: precedência seletor > setting > padrão', () => {
   });
   assert.deepEqual(resolveEffort('claude-x', claude, undefined, undefined), {
     level: 'high',
-    source: 'padrão do modelo',
+    source: 'model-default',
     requestFields: {},
   });
 });
 
-test('resolveEffort: o default que o VS Code preenche não se sobrepõe à setting', () => {
+test('resolveEffort: the default VS Code fills in does not override the setting', () => {
   const claude = parseEffortSupport(CLAUDE_SCHEMA);
   const r = resolveEffort('claude-x', claude, { [EFFORT_OPTION]: 'high' }, { 'claude-x': 'low' });
   assert.equal(r.level, 'low');
   assert.equal(r.source, 'setting');
-  // Sem setting, o default vindo do seletor é enviado explicitamente.
+  // Without a setting, the default coming from the picker is sent explicitly.
   const s = resolveEffort('claude-x', claude, { [EFFORT_OPTION]: 'high' }, {});
   assert.deepEqual(s.requestFields, { output_config: { effort: 'high' } });
 });
 
-test('resolveEffort: níveis inválidos e modelos sem esforço', () => {
+test('resolveEffort: invalid levels and models without effort', () => {
   const claude = parseEffortSupport(CLAUDE_SCHEMA);
-  // 'none' não existe para Claude: ignorado, cai no padrão
+  // 'none' does not exist for Claude: ignored, falls back to the default
   const r = resolveEffort('claude-x', claude, { [EFFORT_OPTION]: 'none' }, { 'claude-x': 42 });
-  assert.deepEqual(r, { level: 'high', source: 'padrão do modelo', requestFields: {} });
+  assert.deepEqual(r, { level: 'high', source: 'model-default', requestFields: {} });
   assert.deepEqual(resolveEffort('glm-x', undefined, { [EFFORT_OPTION]: 'high' }, { 'glm-x': 'high' }), {
-    source: 'padrão do modelo',
+    source: 'model-default',
     requestFields: {},
   });
 });

@@ -7,25 +7,25 @@ import {
   regionFromArn,
 } from '../src/auth/credentials.ts';
 
-test('parseTimestamp trunca nanossegundos para milissegundos', () => {
+test('parseTimestamp truncates nanoseconds to milliseconds', () => {
   const d = parseTimestamp('2026-10-20T10:00:00.123456789Z');
   assert.equal(d.toISOString(), '2026-10-20T10:00:00.123Z');
 });
 
-test('parseTimestamp aceita offset, fração curta e epoch', () => {
+test('parseTimestamp accepts offsets, short fractions and epochs', () => {
   assert.equal(parseTimestamp('2026-10-20T10:00:00+00:00').toISOString(), '2026-10-20T10:00:00.000Z');
   assert.equal(parseTimestamp('2026-10-20T10:00:00.5Z').toISOString(), '2026-10-20T10:00:00.500Z');
   assert.equal(parseTimestamp(1_790_000_000).getTime(), 1_790_000_000_000);
   assert.equal(parseTimestamp(1_790_000_000_000).getTime(), 1_790_000_000_000);
 });
 
-test('parseTimestamp rejeita lixo', () => {
-  assert.throws(() => parseTimestamp('ontem'));
+test('parseTimestamp rejects garbage', () => {
+  assert.throws(() => parseTimestamp('yesterday'));
   assert.throws(() => parseTimestamp(''));
   assert.throws(() => parseTimestamp(undefined));
 });
 
-test('parseTokenRecord aceita snake_case e camelCase', () => {
+test('parseTokenRecord accepts snake_case and camelCase', () => {
   const a = parseTokenRecord(
     JSON.stringify({
       access_token: 'AT',
@@ -46,22 +46,22 @@ test('parseTokenRecord aceita snake_case e camelCase', () => {
     'y',
   );
   assert.equal(b.accessToken, 'AT2');
-  assert.equal(b.region, 'eu-west-1'); // derivada do ARN
+  assert.equal(b.region, 'eu-west-1'); // derived from the ARN
 });
 
-test('parseTokenRecord reporta campos ausentes sem vazar valores', () => {
+test('parseTokenRecord reports missing fields without leaking values', () => {
   assert.throws(() => parseTokenRecord('{"expires_at":"2026-10-20T10:00:00Z"}', 'x'), /access_token/);
-  assert.throws(() => parseTokenRecord('{"access_token":"SEGREDO"}', 'x'), (e: Error) => {
+  assert.throws(() => parseTokenRecord('{"access_token":"SECRET"}', 'x'), (e: Error) => {
     assert.match(e.message, /expires_at/);
-    assert.doesNotMatch(e.message, /SEGREDO/);
+    assert.doesNotMatch(e.message, /SECRET/);
     return true;
   });
-  assert.throws(() => parseTokenRecord('não json', 'x'), /JSON/);
+  assert.throws(() => parseTokenRecord('not json', 'x'), /JSON/);
 });
 
-test('regionFromArn e extractProfileArn', () => {
+test('regionFromArn and extractProfileArn', () => {
   assert.equal(regionFromArn('arn:aws:codewhisperer:us-east-1:123:profile/ABC'), 'us-east-1');
-  assert.equal(regionFromArn('lixo'), undefined);
+  assert.equal(regionFromArn('garbage'), undefined);
   const arn = 'arn:aws:codewhisperer:us-east-1:123:profile/ABC';
   assert.equal(extractProfileArn(arn), arn);
   assert.equal(extractProfileArn(JSON.stringify(arn)), arn);

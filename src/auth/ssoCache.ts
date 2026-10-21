@@ -6,10 +6,10 @@ import { SSO_TOKEN_FILE } from './paths.ts';
 import { fileExists } from './sqliteSnapshot.ts';
 import type { CredentialSource, LoadResult, Logger } from './source.ts';
 
-/** Lê ~/.aws/sso/cache/kiro-auth-token.json (JSON puro, sem SQLite). */
+/** Reads ~/.aws/sso/cache/kiro-auth-token.json (plain JSON, no SQLite). */
 export class SsoCacheSource implements CredentialSource {
   readonly id = 'sso-cache';
-  readonly label = 'Cache SSO (kiro-auth-token.json)';
+  readonly label = 'SSO cache (kiro-auth-token.json)';
   private readonly dir: string;
   private readonly log: Logger;
 
@@ -25,29 +25,29 @@ export class SsoCacheSource implements CredentialSource {
       text = await fs.readFile(file, 'utf8');
     } catch (e) {
       if ((e as NodeJS.ErrnoException).code === 'ENOENT') {
-        return { credentials: [], notes: [`arquivo não encontrado: ${file}`] };
+        return { credentials: [], notes: [`file not found: ${file}`] };
       }
       throw e;
     }
-    this.log(`lendo ${file}`);
+    this.log(`reading ${file}`);
 
     let obj: Record<string, unknown>;
     try {
       obj = JSON.parse(text) as Record<string, unknown>;
     } catch {
-      return { credentials: [], notes: [`${file} não é JSON válido`] };
+      return { credentials: [], notes: [`${file} is not valid JSON`] };
     }
 
     try {
       const c = parseTokenObject(obj, `sso-cache:${SSO_TOKEN_FILE}`);
-      // clientIdHash aponta para <hash>.json com clientId/clientSecret (logins IdC).
+      // clientIdHash points to <hash>.json with clientId/clientSecret (IdC logins).
       const hash = obj.clientIdHash;
       if (typeof hash === 'string' && /^[A-Za-z0-9_-]+$/.test(hash)) {
         c.hasClientRegistration = await fileExists(path.join(this.dir, `${hash}.json`));
       }
       return { credentials: [c], notes: [] };
     } catch (e) {
-      return { credentials: [], notes: [`${file} inválido: ${(e as Error).message}`] };
+      return { credentials: [], notes: [`${file} is invalid: ${(e as Error).message}`] };
     }
   }
 }
@@ -83,7 +83,7 @@ export async function inspectSsoCache(dir: string): Promise<SsoInspection> {
       }
       out.token = info;
     } catch {
-      out.token = { fields: [], error: 'não é JSON válido' };
+      out.token = { fields: [], error: 'not valid JSON' };
     }
   }
   return out;

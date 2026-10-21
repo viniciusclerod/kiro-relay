@@ -6,10 +6,10 @@ export const SSO_TOKEN_FILE = 'kiro-auth-token.json';
 type Platform = NodeJS.Platform;
 
 /**
- * Locais prováveis do data.sqlite3 do kiro-cli, em ordem de prioridade.
- * Linux/macOS: confirmados por documentação de projetos de terceiros.
- * Windows: palpite (não verificado). Use kirorelay.auth.databasePath se divergir.
- * "amazon-q" é o nome legado do mesmo CLI (antes do Kiro).
+ * Likely locations of kiro-cli's data.sqlite3, in priority order.
+ * Linux/macOS: confirmed by third-party project documentation.
+ * Windows: a guess (not verified). Use kirorelay.auth.databasePath if it differs.
+ * "amazon-q" is the legacy name of the same CLI (before Kiro).
  */
 export function defaultDatabaseCandidates(
   platform: Platform = process.platform,
