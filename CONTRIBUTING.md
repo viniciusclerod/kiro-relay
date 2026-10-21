@@ -81,7 +81,7 @@ npm run build       # builds dist/extension.js with esbuild
    inside the container).
 2. In that window: `Ctrl/Cmd+Shift+P` → **Kiro Relay: Diagnose Authentication**.
 3. Read the **Output → "Kiro Relay"** panel. Use "Copy report" in the notification.
-4. The status bar (right side) should show something like `✓ Kiro 55 min`.
+4. The status bar (right side) should show the Kiro logo and the remaining time, e.g. `👻 55 min`. Clicking it opens the Kiro Relay menu.
 5. Open the Chat model picker: a **Kiro** group lists the models of your subscription.
 
 To check the pt-BR translation, run **Configure Display Language**, pick `pt-br` (install the
@@ -91,12 +91,12 @@ Portuguese language pack if asked) and restart.
 
 | # | Scenario | Expected |
 |---|---|---|
-| 1 | kiro-cli signed in, valid token | `✓ Kiro N min`; diagnostics say "OK: got a valid token" |
-| 2 | `kiro-cli logout`, then **Kiro Relay: Reload Credentials** | `⚠ Kiro: sign-in required`; diagnostics list what was searched and where |
-| 3 | `kiro-cli login --use-device-flow` (in the devcontainer), then **Reload Credentials** | back to `✓` |
-| 4 | Token expired without using kiro-cli | `⚠ Kiro: token expired` |
-| 5 | Wait until the token expires, without using kiro-cli | within a minute the status bar is back to `✓ Kiro 59 min`; the log shows `renewal: ran "kiro-cli whoami" (exit 0, …)` |
-| 5b | `kirorelay.auth.renewCommand = []`, token expired | `⚠ Kiro: token expired` until you use kiro-cli |
+| 1 | kiro-cli signed in, valid token | logo + `N min`; diagnostics say "OK: got a valid token" |
+| 2 | `kiro-cli logout`, then **Kiro Relay: Reload Credentials** | logo + ⚠; the menu says "Kiro: sign-in required" and offers **Sign in with kiro-cli**; diagnostics list what was searched and where |
+| 3 | `kiro-cli login --use-device-flow` (in the devcontainer), then **Reload Credentials** | back to logo + `N min` |
+| 4 | Token expired without using kiro-cli | logo + ⚠ ("Kiro: token expired" in the menu) |
+| 5 | Wait until the token expires, without using kiro-cli | within a minute the status bar is back to logo + `59 min`; the log shows `renewal: ran "kiro-cli whoami" (exit 0, …)` |
+| 5b | `kirorelay.auth.renewCommand = []`, token expired | logo + ⚠ ("Kiro: token expired" in the menu) until you use kiro-cli |
 | 6 | Check that the extension does not touch kiro-cli | list the database directory before/after: no new files; `kiro-cli` stays signed in |
 | 7 | Settings: `kirorelay.auth.sources = ["sso-cache"]` | only the JSON source is used |
 | 8 | Settings: `kirorelay.auth.databasePath` pointing elsewhere | diagnostics show the new candidate |

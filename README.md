@@ -35,9 +35,10 @@ Available in English and Brazilian Portuguese (follows the VS Code display langu
 | `Kiro Relay: Diagnose Authentication` | Prints a report without secrets (where credentials were looked for, token validity) |
 | `Kiro Relay: Reload Credentials` | Forces a fresh read of the `kiro-cli` credentials |
 | `Kiro Relay: Refresh Models` | Fetches the model list from Kiro again (it is cached for one hour) |
-| `Kiro Relay: Manage` | Quick menu with the commands above; also opened from the model picker's "Manage" action |
+| `Kiro Relay: Manage` | Menu with the connection state and the commands above; opened by clicking the status bar item or the model picker's "Manage" action |
+| `Kiro Relay: Sign In with kiro-cli` | Opens a terminal running `kiro-cli login` (`--use-device-flow` in remote windows) |
 
-The status bar shows the token state (`✓ Kiro 55 min`, expired, or sign-in required).
+The status bar shows the Kiro logo and how long the token is still valid (or a warning). Click it for a menu with the connection state and all actions, including signing in again with `kiro-cli`.
 
 ## Settings
 

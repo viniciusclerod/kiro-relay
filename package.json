@@ -58,6 +58,11 @@
         "command": "kirorelay.manage",
         "title": "%command.manage.title%",
         "category": "Kiro Relay"
+      },
+      {
+        "command": "kirorelay.signIn",
+        "title": "%command.signIn.title%",
+        "category": "Kiro Relay"
       }
     ],
     "icons": {

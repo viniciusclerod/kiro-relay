@@ -241,15 +241,27 @@ export function activate(context: vscode.ExtensionContext): void {
     },
   };
 
-  const status = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 50);
-  status.command = 'kirorelay.diagnose';
+  const status = vscode.window.createStatusBarItem('kirorelay.status', vscode.StatusBarAlignment.Right, 50);
+  status.name = 'Kiro Relay';
+  status.command = 'kirorelay.manage';
+
+  /** What the status bar and the menu show, refreshed by refreshStatus(). */
+  let state: { kind: 'ok' | 'expired' | 'signed-out' | 'error'; summary: string; detail?: string } = {
+    kind: 'error',
+    summary: vscode.l10n.t('Checking kiro-cli credentials…'),
+  };
 
   async function refreshStatus(forceReload = false): Promise<void> {
-    const clickToDiagnose = vscode.l10n.t('Click to diagnose.');
+    const icon = `$(${KIRO_ICON_ID})`;
     try {
       const t = await auth.provider.getAccessToken({ forceReload });
-      status.text = `$(check) Kiro ${formatHoursMinutes(t.expiresAt.getTime() - Date.now())}`;
-      status.tooltip = `${vscode.l10n.t('Signed in through {0}.', t.source)}\n${clickToDiagnose}`;
+      const remaining = formatHoursMinutes(t.expiresAt.getTime() - Date.now());
+      state = {
+        kind: 'ok',
+        summary: vscode.l10n.t('Signed in, token valid for {0}', remaining),
+        detail: [t.source, t.region].filter(Boolean).join(' · '),
+      };
+      status.text = `${icon} ${remaining}`;
       status.backgroundColor = undefined;
       if (lastTokenOk === false) modelsChanged.fire();
       lastTokenOk = true;
@@ -257,17 +269,20 @@ export function activate(context: vscode.ExtensionContext): void {
       lastTokenOk = false;
       const warn = new vscode.ThemeColor('statusBarItem.warningBackground');
       if (e instanceof TokenExpiredError) {
-        status.text = `$(warning) ${vscode.l10n.t('Kiro: token expired')}`;
+        state = { kind: 'expired', summary: vscode.l10n.t('Kiro: token expired'), detail: describeError(e) };
         status.backgroundColor = warn;
       } else if (e instanceof NotLoggedInError) {
-        status.text = `$(warning) ${vscode.l10n.t('Kiro: sign-in required')}`;
+        state = { kind: 'signed-out', summary: vscode.l10n.t('Kiro: sign-in required'), detail: describeError(e) };
         status.backgroundColor = warn;
       } else {
-        status.text = `$(error) ${vscode.l10n.t('Kiro: error')}`;
+        state = { kind: 'error', summary: vscode.l10n.t('Kiro: error'), detail: describeError(e) };
         status.backgroundColor = new vscode.ThemeColor('statusBarItem.errorBackground');
       }
-      status.tooltip = `${describeError(e)}\n${clickToDiagnose}`;
+      status.text = `${icon} ${state.kind === 'error' ? '$(error)' : '$(warning)'}`;
     }
+    status.tooltip = [state.summary, state.detail, vscode.l10n.t('Click for Kiro Relay options.')]
+      .filter(Boolean)
+      .join('\n');
     status.show();
   }
 
@@ -309,21 +324,46 @@ export function activate(context: vscode.ExtensionContext): void {
     }
   });
 
+  const signIn = vscode.commands.registerCommand('kirorelay.signIn', () => {
+    // In remote windows (devcontainer, SSH, WSL) there is no browser next to kiro-cli: use the device code flow.
+    const args = vscode.env.remoteName ? ' login --use-device-flow' : ' login';
+    const terminal = vscode.window.createTerminal({ name: 'kiro-cli login' });
+    terminal.show();
+    terminal.sendText(`"${cliPath}"${args}`);
+    void vscode.window.showInformationMessage(
+      vscode.l10n.t('Finish signing in in the terminal. Kiro Relay picks up the new token within a minute.'),
+    );
+  });
+
   const manage = vscode.commands.registerCommand('kirorelay.manage', async () => {
-    const items = [
-      { label: `$(refresh) ${vscode.l10n.t('Refresh model list')}`, command: 'kirorelay.refreshModels' },
-      { label: `$(key) ${vscode.l10n.t('Reload kiro-cli credentials')}`, command: 'kirorelay.reloadCredentials' },
-      { label: `$(pulse) ${vscode.l10n.t('Diagnose authentication')}`, command: 'kirorelay.diagnose' },
+    type Item = vscode.QuickPickItem & { run?: () => unknown };
+    const action = (icon: string, label: string, run: () => unknown): Item => ({ label: `$(${icon}) ${label}`, run });
+    const stateIcon = state.kind === 'ok' ? KIRO_ICON_ID : state.kind === 'error' ? 'error' : 'warning';
+    const items: Item[] = [
+      { label: `$(${stateIcon}) ${state.summary}`, detail: state.detail },
+      { label: '', kind: vscode.QuickPickItemKind.Separator },
     ];
-    const pick = await vscode.window.showQuickPick(items, { title: 'Kiro Relay' });
-    if (pick) await vscode.commands.executeCommand(pick.command);
+    if (state.kind === 'signed-out' || state.kind === 'expired') {
+      items.push(action('sign-in', vscode.l10n.t('Sign in with kiro-cli'), () => vscode.commands.executeCommand('kirorelay.signIn')));
+    }
+    items.push(
+      action('refresh', vscode.l10n.t('Refresh model list'), () => vscode.commands.executeCommand('kirorelay.refreshModels')),
+      action('key', vscode.l10n.t('Reload kiro-cli credentials'), () => vscode.commands.executeCommand('kirorelay.reloadCredentials')),
+      action('pulse', vscode.l10n.t('Diagnose authentication'), () => vscode.commands.executeCommand('kirorelay.diagnose')),
+      action('output', vscode.l10n.t('Show log'), () => out.show()),
+      action('settings-gear', vscode.l10n.t('Open settings'), () =>
+        vscode.commands.executeCommand('workbench.action.openSettings', `@ext:${context.extension.id}`),
+      ),
+    );
+    const pick = await vscode.window.showQuickPick(items, { title: 'Kiro Relay', placeHolder: state.summary });
+    await pick?.run?.();
   });
 
   const reload = vscode.commands.registerCommand('kirorelay.reloadCredentials', async () => {
     auth.provider.invalidate();
     await refreshStatus(true);
     await refreshModels();
-    vscode.window.showInformationMessage(status.text.replace(/\$\([^)]+\)\s*/, ''));
+    vscode.window.showInformationMessage(state.summary);
   });
 
   const onConfig = vscode.workspace.onDidChangeConfiguration(async (e) => {
@@ -346,6 +386,7 @@ export function activate(context: vscode.ExtensionContext): void {
     reload,
     refreshModelsCmd,
     manage,
+    signIn,
     onConfig,
     { dispose: () => clearInterval(timer) },
     registration,

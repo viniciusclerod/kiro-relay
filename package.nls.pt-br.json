@@ -12,5 +12,6 @@
   "config.auth.refreshLeewaySeconds.description": "Margem antes do vencimento em que o token deixa de ser considerado válido.",
   "config.reasoningEffort.markdownDescription": "Esforço de raciocínio por modelo, por exemplo `{ \"claude-opus-5\": \"xhigh\" }`. Uma escolha no seletor de modelos do Chat tem prioridade. Níveis que o modelo não aceita são ignorados.",
   "config.auth.renewCommand.description": "Argumentos do kiro-cli que a extensão executa para o kiro-cli renovar um token vencido (padrão: whoami). Lista vazia = nunca executar o kiro-cli; você renova usando o kiro-cli.",
-  "icon.kiro.description": "Logo do Kiro"
+  "icon.kiro.description": "Logo do Kiro",
+  "command.signIn.title": "Entrar com o kiro-cli"
 }

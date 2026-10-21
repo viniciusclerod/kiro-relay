@@ -6,8 +6,6 @@
   "Kiro: could not list the models. {0}": "Kiro: não foi possível listar os modelos. {0}",
   "Default Kiro model.": "Modelo padrão do Kiro.",
   "Diagnose": "Diagnosticar",
-  "Click to diagnose.": "Clique para diagnosticar.",
-  "Signed in through {0}.": "Autenticado via {0}.",
   "Kiro: token expired": "Kiro: token expirado",
   "Kiro: sign-in required": "Kiro: login necessário",
   "Kiro: error": "Kiro: erro",
@@ -20,5 +18,12 @@
   "Your Kiro usage limit for this period has been reached.": "Seu limite de uso do Kiro neste período foi atingido.",
   "The Kiro service reported an error: {0}": "O serviço do Kiro informou um erro: {0}",
   "Kiro did not start answering in time. Try again.": "O Kiro não começou a responder a tempo. Tente novamente.",
-  "The request cannot be sent to Kiro: {0}": "O pedido não pode ser enviado ao Kiro: {0}"
+  "The request cannot be sent to Kiro: {0}": "O pedido não pode ser enviado ao Kiro: {0}",
+  "Checking kiro-cli credentials…": "Verificando as credenciais do kiro-cli…",
+  "Signed in, token valid for {0}": "Autenticado, token válido por {0}",
+  "Click for Kiro Relay options.": "Clique para ver as opções do Kiro Relay.",
+  "Finish signing in in the terminal. Kiro Relay picks up the new token within a minute.": "Conclua o login no terminal. O Kiro Relay usa o novo token em até um minuto.",
+  "Sign in with kiro-cli": "Entrar com o kiro-cli",
+  "Show log": "Mostrar log",
+  "Open settings": "Abrir configurações"
 }

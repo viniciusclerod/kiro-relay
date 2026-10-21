@@ -20,3 +20,5 @@
   can only be set in user settings, not by a workspace.
 - The Kiro logo is shown next to each Kiro model in the Chat model picker and the chat input (works
   in light, dark and high-contrast themes).
+- Status bar: the Kiro logo with the token's remaining time; clicking it opens a menu with the
+  connection state and every action. New command: Sign In with kiro-cli.
