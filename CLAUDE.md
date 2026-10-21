@@ -49,7 +49,9 @@ linguagem** (`vscode.lm.registerLanguageModelChatProvider`) no Chat do VS Code, 
   fingerprints do refresh token e do `client_id`, e o `client_secret_expires_at`.
 - **Etapa 3, catálogo e provedor:** implementada e verificada no F5 (catálogo carregado no extension host).
 - **Etapa 4/5, chat:** implementado (texto com streaming, tool calling, imagens, esforço, raciocínio quando o VS Code expõe
-  `LanguageModelThinkingPart`) e verificado contra o backend real fora do VS Code; **falta testar no F5**. Módulos puros em
+  `LanguageModelThinkingPart`) e **verificado no F5 (2026-10-21)**: texto (Qwen3 Coder Next), modo Agent com ~84 tools e chamadas
+  de ferramenta (Claude Opus 5.5, esforço low pelo seletor) e imagem. Com imagem anexada, o VS Code demora no próprio pré-processamento
+  ("Optimized tool selection") antes de chamar o provedor; não é atraso da extensão. Módulos puros em
   `src/chat/`: `eventstream.ts` (decodificador próprio, sem dependências), `request.ts` (corpo + regras estruturais),
   `response.ts` (eventos), `client.ts` (HTTP + tentativas só antes da primeira saída), `vscodeMessages.ts` (conversão por formato).
   `src/models/catalog.ts` (puro) e o registro `vscode.lm.registerLanguageModelChatProvider('kirorelay', …)` em `extension.ts`.
@@ -136,7 +138,7 @@ Medido com o diagnóstico (só fingerprints e datas) e um monitor da data de mod
    esse cliente). Verificar: opção `endpoint`/`token`; se aceita os campos do Kiro (`additionalModelRequestFields`, `reasoningContent`);
    injeção de headers por `middlewareStack`; tamanho no bundle. Se não servir, usar `@smithy/eventstream-codec` + `fetch`.
 3. ~~Catálogo de modelos (`ListAvailableModels`, REST) e `provideLanguageModelChatInformation`.~~ Feito e verificado no F5.
-4. ~~Chat só texto com streaming~~ e 5. ~~tool calling, imagens, esforço~~: implementados; falta o teste no F5. Pendências: teto local
+4. ~~Chat só texto com streaming~~ e 5. ~~tool calling, imagens, esforço~~: implementados e verificados no F5. Pendências: teto local
    de saída (o backend não tem `max_tokens`), retry sem raciocínio em `THINKING_SIGNATURE_INVALID`, `thinking.type`/`max_tokens` do
    schema, contagem de tokens real.
 6. ~~i18n (inglês padrão + pt-BR)~~ feito. Ícone, LICENSE (nome), CHANGELOG, publicação (Marketplace + **Open VSX**, usado pelo Kiro IDE).
