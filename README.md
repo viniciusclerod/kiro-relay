@@ -146,4 +146,5 @@ See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 
-[MIT](LICENSE). The Kiro Relay icon is original artwork under the same license.
+[MIT](LICENSE). The Kiro Relay icon (a ghost with relay-arrow eyes) is original artwork under the same
+license; it is not the Kiro logo.

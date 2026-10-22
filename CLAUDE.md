@@ -233,7 +233,9 @@ Não está no `@types/vscode` (1.140 é a última): é API proposta, pode mudar.
 - O que dá: `statusIcon` (ThemeIcon) em cada modelo, campo proposto que o runtime repassa sem checar proposta; aparece no botão do
   modelo no campo do Chat (e provavelmente nas linhas do seletor). Ícone próprio via `contributes.icons` + fonte `.woff`.
 - **Logo (decisão do dono, 2026-10-21: mitigar o risco):** o `kiro.svg` do app Kiro (AWS-IPL) foi **removido**. Ícone **original**
-  do Kiro Relay (MIT): balão de chat com "»" (relay), sem imitar o fantasminha. `media/kiro-relay.svg` (glifo 16×16 monocromático →
+  do Kiro Relay (MIT), pedido do dono: **menção ao fantasminha** sem copiar o do Kiro — silhueta genérica de fantasma, sólida e de
+  pé, com três "pés" arredondados e **olhos em "»"** (relay). O do Kiro é inclinado e tem olhos ovais. Direito autoral resolvido
+  (desenho do zero); risco de marca reduzido, não zero. `media/kiro-relay.svg` (glifo 16×16 monocromático →
   fonte `media/kirorelay-icons.woff`, id `kirorelay-logo`, barra de status e `statusIcon` dos modelos) e `media/icon.svg` → `media/icon.png`
   (128×128, ícone do Marketplace). `npm run build:icons` (svgicons2svgfont → svg2ttf → ttf2woff; PNG via `@resvg/resvg-js`; reproduzível;
   `PREVIEW_DIR=…` gera prévias). Commitar os gerados ao mudar um SVG.
