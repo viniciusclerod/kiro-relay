@@ -179,7 +179,9 @@ Medido com o diagnóstico (só fingerprints e datas) e um monitor da data de mod
 4. ~~Chat só texto com streaming~~ e 5. ~~tool calling, imagens, esforço~~: implementados e verificados no F5. Pendências: teto local
    de saída (o backend não tem `max_tokens`), retry sem raciocínio em `THINKING_SIGNATURE_INVALID`, `thinking.type`/`max_tokens` do
    schema, contagem de tokens real.
-6. ~~i18n (inglês padrão + pt-BR)~~ feito. Ícone, LICENSE (nome), CHANGELOG, publicação (Marketplace + **Open VSX**, usado pelo Kiro IDE).
+6. ~~i18n (inglês padrão + pt-BR)~~ feito. Release automático: `.github/workflows/release.yml` publica no push para `main` quando
+   `v<version>` não existe como tag (Marketplace via `VSCE_PAT`, Open VSX via `OVSX_PAT`, tag + GitHub Release). Sem `VSCE_PAT`, nada é
+   publicado nem taggeado. Ícone, LICENSE (nome), CHANGELOG, publicação (Marketplace + **Open VSX**, usado pelo Kiro IDE).
 
 ## Referência do protocolo do Kiro (engenharia reversa, **não oficial**)
 

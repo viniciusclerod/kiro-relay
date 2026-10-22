@@ -142,6 +142,21 @@ package.nls*.json       # manifest translations
 test/                   # node:test, runs without VS Code
 ```
 
+## Releasing
+
+Releases are automatic (`.github/workflows/release.yml`): on a push to `main`, if the
+`version` in `package.json` has no `v<version>` tag yet, the workflow tests and builds, packages
+the `.vsix`, publishes it to the VS Code Marketplace and Open VSX, and creates the tag and a
+GitHub release (notes from the matching `CHANGELOG.md` section).
+
+1. Bump `version` in `package.json` (and `package-lock.json`: `npm version <x.y.z> --no-git-tag-version`).
+2. Add a `## <x.y.z> — <date>` section to `CHANGELOG.md`.
+3. Merge to `main`.
+
+Repository secrets: `VSCE_PAT` (Azure DevOps token, *Marketplace › Manage*, all accessible
+organizations) and `OVSX_PAT` (open-vsx.org token). Without `VSCE_PAT` nothing is published or
+tagged; without `OVSX_PAT` Open VSX is skipped. Re-running is safe (`--skip-duplicate`).
+
 ## Next steps
 
 1. Local output cap, retry without reasoning on `THINKING_SIGNATURE_INVALID`, better token counting.
