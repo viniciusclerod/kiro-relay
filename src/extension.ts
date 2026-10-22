@@ -24,8 +24,8 @@ import { barColorsFor, renderPanel, type PanelLink, type PanelRow, type PanelSec
  */
 type ProviderModelInfo = ChatModelInfo & { statusIcon?: vscode.ThemeIcon };
 
-/** Contributed in package.json (contributes.icons), built from media/kiro.svg. */
-const KIRO_ICON_ID = 'kirorelay-kiro';
+/** Contributed in package.json (contributes.icons), built from media/kiro-relay.svg (original artwork). */
+const KIRO_ICON_ID = 'kirorelay-logo';
 
 // UI text goes through vscode.l10n.t (English source, translations in l10n/).
 // Logs and the diagnostics report stay in English.

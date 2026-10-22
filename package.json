@@ -2,7 +2,7 @@
   "name": "kiro-relay",
   "displayName": "%displayName%",
   "description": "%description%",
-  "version": "0.0.1",
+  "version": "0.0.0",
   "publisher": "viniciusclerod",
   "license": "MIT",
   "preview": true,
@@ -71,8 +71,8 @@
       }
     ],
     "icons": {
-      "kirorelay-kiro": {
-        "description": "%icon.kiro.description%",
+      "kirorelay-logo": {
+        "description": "%icon.logo.description%",
         "default": {
           "fontPath": "media/kirorelay-icons.woff",
           "fontCharacter": "\\E001"
@@ -257,6 +257,7 @@
     "build:icons": "node scripts/build-icons.mjs"
   },
   "devDependencies": {
+    "@resvg/resvg-js": "^2.6.2",
     "@types/node": "^22.10.0",
     "@types/vscode": "^1.104.0",
     "@vscode/vsce": "^3.0.0",
@@ -266,5 +267,10 @@
     "ttf2woff": "^3.0.0",
     "typescript": "^5.8.0"
   },
-  "l10n": "./l10n"
+  "l10n": "./l10n",
+  "icon": "media/icon.png",
+  "galleryBanner": {
+    "color": "#12324A",
+    "theme": "dark"
+  }
 }

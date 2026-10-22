@@ -41,7 +41,7 @@ const DATA: PanelData = {
     {
       title: 'Account',
       aside: 'Signed in',
-      asideIcon: 'kirorelay-kiro',
+      asideIcon: 'kirorelay-logo',
       rows: [
         { label: 'Token', value: '9 min left' },
         { label: 'Kiro session', value: 'unknown (up to 8 h after sign-in)', mutedValue: true },

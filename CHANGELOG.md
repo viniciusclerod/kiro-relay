@@ -1,6 +1,8 @@
 # Changelog
 
-## 0.0.1 (unreleased)
+## 0.0.0 — 2026-10-21
+
+First preview.
 
 - Authentication via `kiro-cli`: read-only credential sources (database snapshot and SSO cache),
   cooperative token provider that never refreshes tokens itself.
@@ -18,8 +20,8 @@
 - Token renewal: when the token has expired, Kiro Relay runs `kiro-cli whoami` so that `kiro-cli`
   renews its own token (`kirorelay.auth.renewCommand`). `kirorelay.cli.path` and the new setting
   can only be set in user settings, not by a workspace.
-- The Kiro logo is shown next to each Kiro model in the Chat model picker and the chat input (works
-  in light, dark and high-contrast themes).
+- The Kiro Relay logo (original artwork) is shown next to each Kiro model in the Chat model picker
+  and the chat input, and in the status bar (works in light, dark and high-contrast themes).
 - Status bar: the Kiro logo with the token's remaining time; clicking it opens a menu with the
   connection state and every action. New command: Sign In with kiro-cli.
 - Credit usage in the status bar hover and menu: plan, credits used with a progress bar, reset date

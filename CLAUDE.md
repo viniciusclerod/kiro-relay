@@ -232,10 +232,11 @@ Não está no `@types/vscode` (1.140 é a última): é API proposta, pode mudar.
   "Kiro" cai no ✨ genérico. `contributes.languageModelChatProviders` não tem campo de ícone.
 - O que dá: `statusIcon` (ThemeIcon) em cada modelo, campo proposto que o runtime repassa sem checar proposta; aparece no botão do
   modelo no campo do Chat (e provavelmente nas linhas do seletor). Ícone próprio via `contributes.icons` + fonte `.woff`.
-- **Logo**: `media/kiro.svg` copiado do app Kiro (`/Applications/Kiro.app/.../kiro.kiro-agent/packages/kiricons/src/kiro.svg`,
-  pacote `@kiro/kiricons`, **licença AWS-IPL**). O dono decidiu usá-lo mesmo assim, ciente da licença. README avisa que o logo não é
-  MIT. O `.svg` não vai no `.vsix` (só a fonte). Fonte: `npm run build:icons` (`scripts/build-icons.mjs`, svgicons2svgfont → svg2ttf
-  → ttf2woff, reproduzível); commitar `media/kirorelay-icons.woff` ao mudar o SVG. Monocromático: o tema pinta (claro/escuro/HC).
+- **Logo (decisão do dono, 2026-10-21: mitigar o risco):** o `kiro.svg` do app Kiro (AWS-IPL) foi **removido**. Ícone **original**
+  do Kiro Relay (MIT): balão de chat com "»" (relay), sem imitar o fantasminha. `media/kiro-relay.svg` (glifo 16×16 monocromático →
+  fonte `media/kirorelay-icons.woff`, id `kirorelay-logo`, barra de status e `statusIcon` dos modelos) e `media/icon.svg` → `media/icon.png`
+  (128×128, ícone do Marketplace). `npm run build:icons` (svgicons2svgfont → svg2ttf → ttf2woff; PNG via `@resvg/resvg-js`; reproduzível;
+  `PREVIEW_DIR=…` gera prévias). Commitar os gerados ao mudar um SVG.
 - **Painel no clique, como o do Copilot: não é possível para extensões (1.142).** O item do Copilot usa o comando interno
   `statusBar.entry.showTooltip`, comparado por **identidade de objeto** no workbench; um id igual vindo de extensão não funciona.
   `StatusBarItem.tooltip2` exige a proposta `statusBarItemTooltip`. O equivalente possível é o **hover** (MarkdownString com

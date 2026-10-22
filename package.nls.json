@@ -5,14 +5,13 @@
   "command.reloadCredentials.title": "Reload Credentials",
   "command.refreshModels.title": "Refresh Models",
   "command.manage.title": "Manage",
-  "config.cli.path.description": "Path to the kiro-cli executable (used for diagnostics and token renewal).",
+  "config.cli.path.description": "Path to the kiro-cli executable (used for token renewal, sign-in and diagnostics).",
   "config.auth.sources.description": "Credential sources, in priority order. 'kiro-cli-db' = kiro-cli's SQLite database; 'sso-cache' = ~/.aws/sso/cache/kiro-auth-token.json.",
   "config.auth.databasePath.description": "Path to kiro-cli's data.sqlite3. Empty = detect automatically.",
   "config.auth.ssoCachePath.description": "Directory of the SSO cache. Empty = ~/.aws/sso/cache.",
   "config.auth.refreshLeewaySeconds.description": "Margin before expiry at which the token is no longer treated as valid.",
   "config.reasoningEffort.markdownDescription": "Thinking effort per model, for example `{ \"claude-opus-5\": \"xhigh\" }`. A choice in the Chat model picker takes precedence. Levels the model does not accept are ignored.",
   "config.auth.renewCommand.description": "kiro-cli arguments the extension runs to have kiro-cli renew an expired token (default: whoami). Empty list = never run kiro-cli; you renew it yourself by using kiro-cli.",
-  "icon.kiro.description": "Kiro logo",
   "command.signIn.title": "Sign In with kiro-cli",
   "command.refreshUsage.title": "Refresh Credit Usage",
   "config.login.license.description": "Account type used by **Kiro Relay: Sign In with kiro-cli** (`kiro-cli login --license`).",
@@ -29,5 +28,6 @@
   "config.section.auth": "Authentication",
   "config.section.cli": "kiro-cli",
   "config.section.chat": "Chat",
-  "config.auth.sessionHours.description": "Duration of your IAM Identity Center session in hours (8 is the AWS default; your organization may use another value). Only used to estimate when you will need to run `kiro-cli login` again."
+  "config.auth.sessionHours.description": "Duration of your IAM Identity Center session in hours (8 is the AWS default; your organization may use another value). Only used to estimate when you will need to run `kiro-cli login` again.",
+  "icon.logo.description": "Kiro Relay logo"
 }

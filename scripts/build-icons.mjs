@@ -1,5 +1,6 @@
-// Builds media/kirorelay-icons.woff from the SVGs in media/ (one glyph per icon).
-// The font is committed; run `npm run build:icons` after changing an icon.
+// Builds media/kirorelay-icons.woff (status bar / model icons) from the monochrome glyphs in media/,
+// and media/icon.png (Marketplace icon, 128x128) from media/icon.svg. Both are committed; run
+// `npm run build:icons` after changing an icon. All artwork is original (MIT).
 //
 // Monochrome glyphs: VS Code paints them with the theme's foreground color, so they work in light,
 // dark and high-contrast themes.
@@ -11,9 +12,10 @@ import { SVGIcons2SVGFontStream } from 'svgicons2svgfont';
 const require = createRequire(import.meta.url);
 const svg2ttf = require('svg2ttf');
 const ttf2woff = require('ttf2woff');
+const { Resvg } = require('@resvg/resvg-js');
 
 /** Keep in sync with contributes.icons in package.json. */
-export const ICONS = [{ name: 'kiro', file: 'media/kiro.svg', codepoint: 0xe001 }];
+export const ICONS = [{ name: 'logo', file: 'media/kiro-relay.svg', codepoint: 0xe001 }];
 const OUT = 'media/kirorelay-icons.woff';
 
 const svgFont = await new Promise((resolve, reject) => {
@@ -46,4 +48,22 @@ for (const icon of ICONS) {
   if (/fill="(?!currentColor|none)[^"]+"/.test(readFileSync(icon.file, 'utf8'))) {
     console.warn(`warning: ${icon.file} has an explicit fill color; fonts ignore it`);
   }
+}
+
+// Marketplace icon.
+const png = new Resvg(readFileSync('media/icon.svg', 'utf8'), { fitTo: { mode: 'width', value: 128 } }).render().asPng();
+writeFileSync('media/icon.png', png);
+console.log(`media/icon.png: 128x128, ${png.length} bytes`);
+
+// Optional previews (e.g. PREVIEW_DIR=/tmp/x npm run build:icons): the glyph at a few sizes, dark and light.
+if (process.env.PREVIEW_DIR) {
+  const glyph = readFileSync(ICONS[0].file, 'utf8');
+  for (const [name, color, bg] of [['dark', '#CCCCCC', '#181818'], ['light', '#333333', '#F8F8F8']]) {
+    const svg = glyph.replace('fill="currentColor"', `fill="${color}"`).replace('<svg ', `<svg style="background:${bg}" `);
+    for (const size of [16, 64]) {
+      const img = new Resvg(svg, { fitTo: { mode: 'width', value: size }, background: bg }).render().asPng();
+      writeFileSync(`${process.env.PREVIEW_DIR}/glyph-${name}-${size}.png`, img);
+    }
+  }
+  console.log(`previews written to ${process.env.PREVIEW_DIR}`);
 }

@@ -1,4 +1,4 @@
-import test from 'node:test';
+import test, { after } from 'node:test';
 import assert from 'node:assert/strict';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
@@ -8,6 +8,14 @@ import { runDiagnostics } from '../src/auth/diagnose.ts';
 import { KiroCliDbSource } from '../src/auth/kiroCliDb.ts';
 import { fingerprint } from '../src/auth/redact.ts';
 import { KiroCliTokenProvider } from '../src/auth/tokenProvider.ts';
+
+const createdDirs: string[] = [];
+after(() => createdDirs.forEach((d) => fs.rmSync(d, { recursive: true, force: true })));
+const tmp = () => {
+  const d = fs.mkdtempSync(path.join(os.tmpdir(), 'kiro-diag-'));
+  createdDirs.push(d);
+  return d;
+};
 
 const T0 = Date.parse('2026-10-20T12:00:00Z');
 const SECRETS = ['AT-FAKE-xyz', 'RT-FAKE-xyz', 'CID-FAKE', 'CSECRET-FAKE'];
@@ -51,7 +59,7 @@ function makeRealLayoutDb(dir: string): string {
 }
 
 test('diagnostics with the real layout: now, remaining time, fingerprints and client_secret_expires_at', async () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'kiro-diag-'));
+  const dir = tmp();
   const dbFile = makeRealLayoutDb(dir);
   const now = () => T0;
   const provider = new KiroCliTokenProvider({
@@ -82,7 +90,7 @@ test('diagnostics with the real layout: now, remaining time, fingerprints and cl
 });
 
 test('diagnostics with an expired token show how long ago it expired', async () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'kiro-diag-'));
+  const dir = tmp();
   const dbFile = makeRealLayoutDb(dir);
   const now = () => T0 + 20 * 60_000;
   const report = await runDiagnostics({

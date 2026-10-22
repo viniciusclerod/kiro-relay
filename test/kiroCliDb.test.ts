@@ -1,4 +1,4 @@
-import test from 'node:test';
+import test, { after } from 'node:test';
 import assert from 'node:assert/strict';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
@@ -8,8 +8,13 @@ import { KiroCliDbSource, inspectDatabase } from '../src/auth/kiroCliDb.ts';
 
 const ARN = 'arn:aws:codewhisperer:us-east-1:123456789012:profile/ABCDEF';
 
+const createdDirs: string[] = [];
+after(() => createdDirs.forEach((d) => fs.rmSync(d, { recursive: true, force: true })));
+
 function tmpdir(): string {
-  return fs.mkdtempSync(path.join(os.tmpdir(), 'kiro-test-'));
+  const d = fs.mkdtempSync(path.join(os.tmpdir(), 'kiro-test-'));
+  createdDirs.push(d);
+  return d;
 }
 
 function makeDb(dir: string, wal: boolean): DatabaseSync {
