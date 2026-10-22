@@ -109,26 +109,30 @@ function row(left: string, right: string): string {
   return `<tr><td>${left}</td><td align="right">${right}</td></tr>`;
 }
 
+function fullRow(html: string): string {
+  return `<tr><td colspan="2">${html}</td></tr>`;
+}
+
+/**
+ * One table per section: block elements (<p>, headings outside tables) bring their own margins and
+ * made the spacing uneven, so every line of a section is a row of the same table.
+ */
 function sectionHtml(s: PanelSection, colors: BarColors): string {
   const aside = s.aside ? muted(`${s.asideIcon ? `${icon(s.asideIcon)} ` : ''}${escapeHtml(s.aside)}`) : '';
-  const parts = [`<table width="100%">${row(`<strong>${escapeHtml(s.title)}</strong>`, aside)}</table>`];
+  const rows = [row(`<strong>${escapeHtml(s.title)}</strong>`, aside)];
   if (s.highlight) {
     const big = `<h3>${escapeHtml(s.highlight.value)} <small>${muted(escapeHtml(s.highlight.caption))}</small></h3>`;
-    const detail = s.highlight.detail ? muted(escapeHtml(s.highlight.detail)) : '';
-    parts.push(`<table width="100%">${row(big, detail)}</table>`);
+    rows.push(row(big, s.highlight.detail ? muted(escapeHtml(s.highlight.detail)) : ''));
   }
-  if (s.progress !== undefined) parts.push(`<p>${progressBar(s.progress, colors)}</p>`);
-  if (s.rows?.length) {
-    const rows = s.rows.map((r) => {
-      let value = escapeHtml(r.value);
-      if (r.href) value = link(r.href, value);
-      if (r.mutedValue) value = muted(value);
-      if (r.icon) value = `${icon(r.icon)} ${value}`;
-      return row(muted(escapeHtml(r.label)), value);
-    });
-    parts.push(`<table width="100%">${rows.join('')}</table>`);
+  if (s.progress !== undefined) rows.push(fullRow(progressBar(s.progress, colors)));
+  for (const r of s.rows ?? []) {
+    let value = escapeHtml(r.value);
+    if (r.href) value = link(r.href, value);
+    if (r.mutedValue) value = muted(value);
+    if (r.icon) value = `${icon(r.icon)} ${value}`;
+    rows.push(row(muted(escapeHtml(r.label)), value));
   }
-  return parts.join('\n\n');
+  return `<table width="100%">${rows.join('')}</table>`;
 }
 
 export function renderPanel(data: PanelData): string {
@@ -139,5 +143,6 @@ export function renderPanel(data: PanelData): string {
   const links = data.links
     .map((l) => link(l.href, `${l.icon ? `${icon(l.icon)} ` : ''}${escapeHtml(l.label)}`))
     .join(' &nbsp;&nbsp; ');
-  return [header, ...data.sections.map((s) => sectionHtml(s, data.barColors)), `<p>${links}</p>`].join('\n\n<hr>\n\n');
+  const footer = `<table width="100%">${fullRow(links)}</table>`;
+  return [header, ...data.sections.map((s) => sectionHtml(s, data.barColors)), footer].join('\n\n<hr>\n\n');
 }

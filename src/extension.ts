@@ -1,4 +1,6 @@
 import { randomUUID } from 'node:crypto';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { runDiagnostics } from './auth/diagnose.ts';
 import { KiroAuthError, NotLoggedInError, TokenExpiredError } from './auth/errors.ts';
@@ -135,11 +137,28 @@ export function activate(context: vscode.ExtensionContext): void {
     }
   };
   const turnUsage = new TurnUsageTracker();
+  // Written to a file right away: globalState is flushed late and was lost when the debug session
+  // (or the window) was stopped. Holds only a refresh token fingerprint and timestamps.
   const SESSION_KEY = 'kirorelay.session';
+  const sessionFile = path.join(context.globalStorageUri.fsPath, 'session.json');
+  let sessionRecord: SessionRecord | undefined;
+  try {
+    sessionRecord = JSON.parse(fs.readFileSync(sessionFile, 'utf8')) as SessionRecord;
+  } catch {
+    sessionRecord = context.globalState.get<SessionRecord>(SESSION_KEY);
+  }
   const session = new SessionTracker(
     {
-      get: () => context.globalState.get<SessionRecord>(SESSION_KEY),
-      set: (r) => void context.globalState.update(SESSION_KEY, r),
+      get: () => sessionRecord,
+      set: (r) => {
+        sessionRecord = r;
+        try {
+          fs.mkdirSync(path.dirname(sessionFile), { recursive: true });
+          fs.writeFileSync(sessionFile, JSON.stringify(r), { mode: 0o600 });
+        } catch (e) {
+          log(`session: could not save ${sessionFile}: ${e instanceof Error ? e.message : String(e)}`);
+        }
+      },
     },
     () => vscode.workspace.getConfiguration('kirorelay').get<number>('auth.sessionHours', 8),
   );

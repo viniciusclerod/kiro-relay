@@ -105,7 +105,9 @@ reenviar (os separadores ficam **dentro** dos `*`, senão o itálico não fecha)
 modelo) é alimentado pelo **participante** (`stream.usage`, Copilot), não pelo provedor: o rodapé na resposta é o mais perto possível.
 - **Fim da sessão do IdC (estimativa, `src/auth/session.ts`):** o backend não informa. Refresh token novo (fingerprint) visto com token
   de ≥55 min = login agora → fim ≈ login + `kirorelay.auth.sessionHours` (8). Renovação recente (≤3 min) que devolve token de <50 min =
-  token cortado pelo fim da sessão → fim exato. Guardado em `globalState['kirorelay.session']` (só fingerprint). Mostrado como tempo
+  token cortado pelo fim da sessão → fim exato. Guardado em `globalStorageUri/session.json` (só fingerprint e horários), gravado na
+  hora: o `globalState` grava com atraso e perdeu o registro quando a depuração foi parada (visto no F5). **Verificado no F5 (19:30):**
+  o token renovado às 19:10 valia só ~20 min, terminando 8 h após o login; após o novo login o painel mostrou "≈ 7 h 58 min". Mostrado como tempo
   restante ("restam …"), nunca hora do relógio: o extension host pode estar em UTC.
 - **Barra de status (decisão do dono):** só o ícone do Kiro (+ ⚠/⛔); hover = painel; clique = `kirorelay.refreshPanel` (relê token,
   sessão e créditos em silêncio), porque abrir o hover no clique não é possível para extensões; o menu fica no link "Menu" do painel.
