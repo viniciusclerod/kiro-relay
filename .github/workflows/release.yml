@@ -1,13 +1,16 @@
 name: Release
 
-# On every push to main, publishes the version in package.json to each registry that has a token:
-#   VSCE_PAT  -> VS Code Marketplace (Azure DevOps token, scope Marketplace > Manage)
-#   OVSX_PAT  -> Open VSX (open-vsx.org access token)
-# (Settings > Secrets and variables > Actions.) The registries are independent: one failing does not
-# stop the other, and each one skips a version it already has (--skip-duplicate), so adding the
-# second token later publishes the current version there too. Without any token nothing happens.
-# The v<version> tag and the GitHub release are created once, after every configured registry
-# succeeded.
+# On every push to main (or manual trigger), build and package the extension,
+# create the GitHub tag/release first (with the .vsix asset), then publish
+# independently to each marketplace based on *_ENABLE + *_PAT.
+#
+# Optional per-registry publishing controls:
+#   - VSCE_ENABLE=true  + VSCE_PAT  -> VS Code Marketplace
+#   - OVSX_ENABLE=true  + OVSX_PAT  -> Open VSX
+#
+# Notes:
+# - Registries are independent; one failing does not block attempting the other.
+# - --skip-duplicate is used for idempotency on marketplace publishes.
 
 on:
   push:
@@ -22,77 +25,63 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  check:
+  release:
     runs-on: ubuntu-latest
-    outputs:
-      version: ${{ steps.check.outputs.version }}
-      marketplace: ${{ steps.check.outputs.marketplace }}
-      openvsx: ${{ steps.check.outputs.openvsx }}
-      tagged: ${{ steps.check.outputs.tagged }}
+    env:
+      VSCE_ENABLE: ${{ vars.VSCE_ENABLE }}
+      OVSX_ENABLE: ${{ vars.OVSX_ENABLE }}
+      VSCE_PAT: ${{ secrets.VSCE_PAT }}
+      OVSX_PAT: ${{ secrets.OVSX_PAT }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - id: check
-        env:
-          VSCE_PAT: ${{ secrets.VSCE_PAT }}
-          OVSX_PAT: ${{ secrets.OVSX_PAT }}
-        run: |
-          version=$(node -p "require('./package.json').version")
-          echo "version=$version" >> "$GITHUB_OUTPUT"
-          echo "marketplace=$([ -n "$VSCE_PAT" ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
-          echo "openvsx=$([ -n "$OVSX_PAT" ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
-          if git rev-parse -q --verify "refs/tags/v$version" >/dev/null; then tagged=true; else tagged=false; fi
-          echo "tagged=$tagged" >> "$GITHUB_OUTPUT"
-          [ -n "$VSCE_PAT" ] || echo "::notice::VSCE_PAT is not set: the VS Code Marketplace is skipped."
-          [ -n "$OVSX_PAT" ] || echo "::notice::OVSX_PAT is not set: Open VSX is skipped."
 
-  release:
-    needs: check
-    # Only when at least one registry has a token.
-    if: needs.check.outputs.marketplace == 'true' || needs.check.outputs.openvsx == 'true'
-    runs-on: ubuntu-latest
-    env:
-      VERSION: ${{ needs.check.outputs.version }}
-      VSIX: kiro-relay-${{ needs.check.outputs.version }}.vsix
-    steps:
-      - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
+
+      - name: Resolve version and flags
+        id: meta
+        run: |
+          version=$(node -p "require('./package.json').version")
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "vsix=kiro-relay-$version.vsix" >> "$GITHUB_OUTPUT"
+
+          if git rev-parse -q --verify "refs/tags/v$version" >/dev/null; then
+            echo "tagged=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "tagged=false" >> "$GITHUB_OUTPUT"
+          fi
+
+          vsce_enabled=$([ "${VSCE_ENABLE}" = "true" ] && echo true || echo false)
+          ovsx_enabled=$([ "${OVSX_ENABLE}" = "true" ] && echo true || echo false)
+          echo "vsce_enabled=$vsce_enabled" >> "$GITHUB_OUTPUT"
+          echo "ovsx_enabled=$ovsx_enabled" >> "$GITHUB_OUTPUT"
+
+          [ "$vsce_enabled" = "true" ] || echo "::notice::VSCE_ENABLE is not 'true': VS Code Marketplace publish will be skipped."
+          [ "$ovsx_enabled" = "true" ] || echo "::notice::OVSX_ENABLE is not 'true': Open VSX publish will be skipped."
+          [ -n "$VSCE_PAT" ] || echo "::notice::VSCE_PAT is not set: VS Code Marketplace publish cannot run."
+          [ -n "$OVSX_PAT" ] || echo "::notice::OVSX_PAT is not set: Open VSX publish cannot run."
+
       - run: npm ci
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
-      - run: npx vsce package --out "$VSIX"
 
-      - name: Publish to the VS Code Marketplace
-        id: marketplace
-        if: needs.check.outputs.marketplace == 'true'
-        continue-on-error: true
+      - name: Package VSIX
         env:
-          VSCE_PAT: ${{ secrets.VSCE_PAT }}
-        run: npx vsce publish --packagePath "$VSIX" --skip-duplicate
+          VSIX: ${{ steps.meta.outputs.vsix }}
+        run: npx vsce package --out "$VSIX"
 
-      - name: Publish to Open VSX
-        id: openvsx
-        if: needs.check.outputs.openvsx == 'true'
-        continue-on-error: true
-        env:
-          OVSX_PAT: ${{ secrets.OVSX_PAT }}
-        run: npx --yes ovsx@1.3.0 publish "$VSIX" --pat "$OVSX_PAT" --skip-duplicate
-
-      - name: Tag and GitHub release
-        # Once per version, after every configured registry succeeded (a skipped one does not count).
-        if: >-
-          needs.check.outputs.tagged != 'true' &&
-          steps.marketplace.outcome != 'failure' &&
-          steps.openvsx.outcome != 'failure'
+      - name: Create tag and GitHub release first
+        if: steps.meta.outputs.tagged != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.meta.outputs.version }}
+          VSIX: ${{ steps.meta.outputs.vsix }}
         run: |
-          # Notes: the CHANGELOG section of this version ("## <version> ..." up to the next "## ").
           awk -v v="$VERSION" '
             /^## / { if (found) exit; if (index($0, "## " v) == 1) { found = 1; next } }
             found { print }
@@ -101,10 +90,35 @@ jobs:
           prerelease=$(node -p "require('./package.json').preview ? '--prerelease' : ''")
           gh release create "v$VERSION" "$VSIX" --target "$GITHUB_SHA" --title "v$VERSION" --notes-file notes.md $prerelease
 
-      - name: Report failed registries
+      - name: Ensure VSIX is attached when release already exists
+        if: steps.meta.outputs.tagged == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.meta.outputs.version }}
+          VSIX: ${{ steps.meta.outputs.vsix }}
+        run: |
+          gh release upload "v$VERSION" "$VSIX" --clobber
+
+      - name: Publish to the VS Code Marketplace
+        id: marketplace
+        if: steps.meta.outputs.vsce_enabled == 'true' && env.VSCE_PAT != ''
+        continue-on-error: true
+        env:
+          VSIX: ${{ steps.meta.outputs.vsix }}
+        run: npx vsce publish --packagePath "$VSIX" --skip-duplicate
+
+      - name: Publish to Open VSX
+        id: openvsx
+        if: steps.meta.outputs.ovsx_enabled == 'true' && env.OVSX_PAT != ''
+        continue-on-error: true
+        env:
+          VSIX: ${{ steps.meta.outputs.vsix }}
+        run: npx --yes ovsx@1.3.0 publish "$VSIX" --pat "$OVSX_PAT" --skip-duplicate
+
+      - name: Report failed marketplace publishes
         if: steps.marketplace.outcome == 'failure' || steps.openvsx.outcome == 'failure'
         run: |
-          [ "${{ steps.marketplace.outcome }}" != "failure" ] || echo "::error::Publishing to the VS Code Marketplace failed (check VSCE_PAT and the publisher)."
-          [ "${{ steps.openvsx.outcome }}" != "failure" ] || echo "::error::Publishing to Open VSX failed (check OVSX_PAT and the namespace)."
-          echo "Re-run the workflow after fixing it: registries that already have v$VERSION skip it."
+          [ "${{ steps.marketplace.outcome }}" != "failure" ] || echo "::error::Publishing to the VS Code Marketplace failed (check VSCE_ENABLE/VSCE_PAT and publisher settings)."
+          [ "${{ steps.openvsx.outcome }}" != "failure" ] || echo "::error::Publishing to Open VSX failed (check OVSX_ENABLE/OVSX_PAT and namespace settings)."
+          echo "The GitHub release/tag step ran first. Re-run after fixing marketplace settings."
           exit 1
