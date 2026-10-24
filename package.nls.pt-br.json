@@ -5,6 +5,8 @@
   "command.reloadCredentials.title": "Recarregar credenciais",
   "command.refreshModels.title": "Atualizar modelos",
   "command.manage.title": "Gerenciar",
+  "command.togglePanel.title": "Alternar painel de status",
+  "view.statusPanel.name": "Status",
   "config.cli.path.description": "Caminho do executável do kiro-cli (usado na renovação do token, no login e no diagnóstico).",
   "config.auth.sources.description": "Fontes de credenciais, em ordem de prioridade. 'kiro-cli-db' = banco SQLite do kiro-cli; 'sso-cache' = ~/.aws/sso/cache/kiro-auth-token.json.",
   "config.auth.databasePath.description": "Caminho do data.sqlite3 do kiro-cli. Vazio = detectar automaticamente.",

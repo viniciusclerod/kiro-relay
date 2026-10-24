@@ -195,6 +195,11 @@ export class UsageTracker {
     return this.cached?.usage;
   }
 
+  /** When the last known usage was fetched. */
+  get updatedAt(): Date | undefined {
+    return this.cached ? new Date(this.cached.at) : undefined;
+  }
+
   /** Fetches when stale (or `force`). Never throws: returns the last good value, or undefined. */
   refresh(opts: { force?: boolean } = {}): Promise<UsageSummary | undefined> {
     if (!opts.force && this.cached && this.now() - this.cached.at < this.ttlMs) {

@@ -2,10 +2,9 @@
 
 A language model provider for VS Code that uses **only** the `kiro-cli` authentication.
 
-**Current stage: chat.** The extension reads the kiro-cli credentials safely, has a diagnostics
-command and a status bar indicator, and registers the `kirorelay` model provider: the Kiro models
-(with thinking effort where supported) appear in the Chat model picker and answer with streaming
-text, tool calls and images.
+**Current stage: preview.** The extension reads kiro-cli credentials safely, offers diagnostics and a
+status panel, and registers the `kirorelay` model provider. Kiro models (with thinking effort where
+supported) appear in the Chat model picker and answer with streaming text, tool calls and images.
 
 ## Security principles
 
@@ -52,6 +51,21 @@ You only need **VS Code + the Dev Containers extension + Docker**. Node is not n
 > **Why sign in inside the container?** In remote VS Code (devcontainer, WSL, SSH) the extension
 > under development runs **inside the container** and reads files **from there**, not from your host.
 
+### Testing CLI installation from the extension
+
+The devcontainer installs kiro-cli by default. To test the extension's missing-CLI installation
+flow with **F5**, set `KIRO_RELAY_INSTALL_CLI` to `"0"` in `remoteEnv` in
+[devcontainer.json](.devcontainer/devcontainer.json), then rebuild the container. The post-create
+script still installs npm dependencies, but skips kiro-cli. In the Extension Development Host,
+run **Kiro Relay: Sign In** and confirm the installation when prompted.
+
+Set the variable back to `"1"` to restore automatic installation. When running the post-create
+script directly, the variable defaults to `1` if unset; only `0` and `1` are accepted.
+Disabling installation does not remove an existing CLI or sign out an existing session, so use
+a fresh container without a CLI installation to exercise the missing-CLI flow.
+`KIRO_CLI_SKIP_SETUP=1` is separate: it is passed to Kiro's installer to skip its setup step,
+not to disable installation.
+
 ## Choosing the name
 
 ```bash
@@ -63,7 +77,7 @@ not mean available: the final proof is reserving the `publisher.name` ID when pu
 
 ## Without the devcontainer
 
-Requirements: VS Code 1.104+, Node 22.18+ and kiro-cli installed and signed in.
+Requirements: VS Code 1.106+, Node 22.18+ and kiro-cli installed and signed in.
 
 ## Commands
 
@@ -81,7 +95,8 @@ npm run build       # builds dist/extension.js with esbuild
    inside the container).
 2. In that window: `Ctrl/Cmd+Shift+P` → **Kiro Relay: Diagnose Authentication**.
 3. Read the **Output → "Kiro Relay"** panel. Use "Copy report" in the notification.
-4. The status bar (right side) should show the Kiro logo and the remaining time, e.g. `👻 55 min`. Clicking it opens the Kiro Relay menu.
+4. The status bar should show the Kiro logo. Click it to open or close the Kiro Relay panel in the
+  secondary side bar; hover it to see token and session expiry.
 5. Open the Chat model picker: a **Kiro** group lists the models of your subscription.
 
 To check the pt-BR translation, run **Configure Display Language**, pick `pt-br` (install the
@@ -91,17 +106,17 @@ Portuguese language pack if asked) and restart.
 
 | # | Scenario | Expected |
 |---|---|---|
-| 1 | kiro-cli signed in, valid token | logo + `N min`; diagnostics say "OK: got a valid token" |
-| 2 | `kiro-cli logout`, then **Kiro Relay: Reload Credentials** | logo + ⚠; the menu says "Kiro: sign-in required" and offers **Sign in with kiro-cli**; diagnostics list what was searched and where |
-| 3 | `kiro-cli login --use-device-flow` (in the devcontainer), then **Reload Credentials** | back to logo + `N min` |
-| 4 | Token expired without using kiro-cli | logo + ⚠ ("Kiro: token expired" in the menu) |
-| 5 | Wait until the token expires, without using kiro-cli | within a minute the status bar is back to logo + `59 min`; the log shows `renewal: ran "kiro-cli whoami" (exit 0, …)` |
+| 1 | kiro-cli signed in, valid token | logo only; hover shows token/session expiry; diagnostics say "OK: got a valid token" |
+| 2 | `kiro-cli logout`, then **Kiro Relay: Reload Credentials** | logo + ⚠; the panel and menu say "Kiro: sign-in required" and offer **Sign in with kiro-cli**; diagnostics list what was searched and where |
+| 3 | `kiro-cli login --use-device-flow` (in the devcontainer), then **Reload Credentials** | panel returns to signed in; status bar shows logo only |
+| 4 | Token expired without using kiro-cli | logo + ⚠ ("Kiro: token expired" in the panel and menu) |
+| 5 | Wait until the token expires, without using kiro-cli | within a minute the panel shows the renewed token; the log shows `renewal: ran "kiro-cli whoami" (exit 0, …)` |
 | 5b | `kirorelay.auth.renewCommand = []`, token expired | logo + ⚠ ("Kiro: token expired" in the menu) until you use kiro-cli |
 | 6 | Check that the extension does not touch kiro-cli | list the database directory before/after: no new files; `kiro-cli` stays signed in |
 | 7 | Settings: `kirorelay.auth.sources = ["sso-cache"]` | only the JSON source is used |
 | 8 | Settings: `kirorelay.auth.databasePath` pointing elsewhere | diagnostics show the new candidate |
 | 9 | Chat model picker → a Claude or GPT model → Details | a **Thinking Effort** menu with the model's levels |
-| 9b | Hover the status bar item | plan, credits used with a progress bar and the reset date, token state, action links |
+| 9b | Click the status bar item; then hover it | panel shows plan, credits, progress, reset time and actions; hover shows token and session expiry only |
 | 10 | Ask mode, a Kiro model, "hi" | streamed answer; the output panel logs `chat done: END_TURN, … credits` |
 | 11 | Agent mode, a Kiro model, "read package.json and tell me the version" | the model calls a tool, VS Code runs it, the model answers |
 | 12 | Attach an image to a model with image input | the answer describes the image |

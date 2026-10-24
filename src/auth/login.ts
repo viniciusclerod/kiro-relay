@@ -4,6 +4,29 @@
 // start URL), --region <REGION> (Identity Center region), --use-device-flow.
 // The arguments go straight to the kiro-cli process (no shell), and are validated anyway.
 
+import { defaultRun, type RunFn } from './renewer.ts';
+
+export async function isCliInstalled(cliPath: string, run: RunFn = defaultRun): Promise<boolean> {
+  try {
+    await run(cliPath, ['--version'], { timeout: 5_000 });
+    return true;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return false;
+    throw error;
+  }
+}
+
+export function buildInstallCommand(platform: NodeJS.Platform): { shellPath: string; shellArgs: string[] } | undefined {
+  const command = 'set -o pipefail; curl -fsSL https://cli.kiro.dev/install | bash';
+  if (platform === 'darwin' || platform === 'linux') {
+    return { shellPath: '/bin/bash', shellArgs: ['-c', command] };
+  }
+  if (platform === 'win32') {
+    return { shellPath: 'wsl.exe', shellArgs: ['--exec', 'bash', '-c', command] };
+  }
+  return undefined;
+}
+
 export interface LoginSettings {
   /** "" = let kiro-cli ask; "pro" = IAM Identity Center; "free" = Builder ID, Google or GitHub. */
   license?: string;

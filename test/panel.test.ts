@@ -1,37 +1,21 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { barColorsFor, escapeHtml, progressBar, renderPanel, type PanelData } from '../src/ui/panel.ts';
+import { renderTooltip } from '../src/ui/tooltip.ts';
+import { PANEL_COMMANDS, renderPanelWebview, type WebviewOptions } from '../src/ui/webview.ts';
 
-// Rules of the VS Code 1.142 markdown sanitizer (workbench: allowed tags, ICe attributes, style/class checks).
-const ALLOWED_TAGS = new Set(
-  'a abbr b bdo blockquote br caption cite code col colgroup dd del details dfn div dl dt em figcaption figure h1 h2 h3 h4 h5 h6 hr i img ins kbd label li mark ol p pre q rp rt ruby s samp small source span strike strong sub summary sup table tbody td tfoot th thead time tr tt u ul var video wbr'.split(' '),
-);
-const ALLOWED_ATTRS = new Set(
-  'align autoplay alt colspan controls draggable height href loop muted playsinline poster rowspan src target title type width start checked disabled value data-code data-href data-severity'.split(' '),
-);
-const SPAN_STYLE =
-  /^(color\:(#[0-9a-fA-F]+|var\(--vscode(-[a-zA-Z0-9]+)+\));)?(background-color\:(#[0-9a-fA-F]+|var\(--vscode(-[a-zA-Z0-9]+)+\));)?(display\:inline-block;)?(border-radius:[0-9]+px;)?$/;
-const SPAN_CLASS = /^codicon codicon-[a-z\-]+( codicon-modifier-[a-z\-]+)?$/;
-
-/** Returns the attributes the VS Code sanitizer would drop (empty = everything survives). */
-function droppedBySanitizer(html: string): string[] {
-  const dropped: string[] = [];
-  for (const m of html.matchAll(/<(\/?)([a-zA-Z0-9]+)([^>]*)>/g)) {
-    const tag = m[2]!.toLowerCase();
-    if (!ALLOWED_TAGS.has(tag)) dropped.push(`<${tag}>`);
-    for (const a of m[3]!.matchAll(/([a-zA-Z-]+)="([^"]*)"/g)) {
-      const [, name, value] = a as unknown as [string, string, string];
-      if (name === 'style') {
-        if (tag !== 'span' || !SPAN_STYLE.test(value)) dropped.push(`${tag}[style="${value}"]`);
-      } else if (name === 'class') {
-        if (tag !== 'span' || !SPAN_CLASS.test(value)) dropped.push(`${tag}[class="${value}"]`);
-      } else if (!ALLOWED_ATTRS.has(name)) {
-        dropped.push(`${tag}[${name}]`);
-      }
-    }
-  }
-  return dropped;
-}
+test('status view targets a valid container in the secondary side bar', () => {
+  const manifest = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
+  const containers = manifest.contributes.viewsContainers.secondarySidebar;
+  assert.equal(containers.length, 1);
+  const container = containers[0];
+  assert.match(container.id, /^[a-z0-9_-]+$/i, 'VS Code rejects dots in view container IDs');
+  assert.equal(container.title, 'Kiro Relay');
+  assert.ok(manifest.contributes.views[container.id].some(
+    (view: { id: string; type: string }) => view.id === 'kirorelay.statusPanel' && view.type === 'webview',
+  ));
+});
 
 const DATA: PanelData = {
   barColors: barColorsFor('dark'),
@@ -50,8 +34,8 @@ const DATA: PanelData = {
     },
     {
       title: 'Credits',
-      aside: 'Resets Nov 1',
-      highlight: { value: '0.9%', caption: 'used', detail: '9.97 / 1,000' },
+      aside: 'Resets Nov 1, 12:00 AM UTC',
+      highlight: { value: '0.9%', caption: 'used', alt: { value: '9.97 / 1,000', caption: 'used' } },
       progress: 0.9,
     },
   ],
@@ -61,16 +45,13 @@ const DATA: PanelData = {
   ],
 };
 
-test('the whole panel survives the VS Code markdown sanitizer', () => {
-  assert.deepEqual(droppedBySanitizer(renderPanel(DATA)), []);
-});
-
 test('skeleton: header, one full-width table per section, separators, right-aligned values', () => {
   const html = renderPanel(DATA);
   assert.equal((html.match(/<hr>/g) ?? []).length, DATA.sections.length + 1);
   assert.ok((html.match(/<table width="100%">/g) ?? []).length >= DATA.sections.length + 1);
   assert.match(html, /<td align="right"><a href="command:workbench\.action\.openSettings\?[^"]+" title="Open settings"><span class="codicon codicon-settings-gear"><\/span><\/a><\/td>/);
-  assert.match(html, /<h3>0\.9% <small>/);
+  assert.match(html, /<h3><span class="swap-main">0\.9% <small>/);
+  assert.match(html, /Resets Nov 1, 12:00 AM UTC/);
   assert.match(html, /<a href="https:\/\/example\.awsapps\.com\/start\/">example\.awsapps\.com · us-east-1<\/a>/);
   assert.ok(!html.includes('$('), 'theme icon syntax is not processed inside HTML: codicon spans are used');
 });
@@ -95,11 +76,100 @@ test('progressBar: SVG image stretched to the panel, proportional, a sliver for 
   assert.ok(!svgOf(progressBar(5, { fill: 'red"/><script>', track: 'x' })).includes('script'));
 });
 
-test('highlight: big percentage left, credits right on the same line', () => {
+test('highlight: percentage by default, credits swapped in on hover or focus', () => {
   const html = renderPanel({
     ...DATA,
-    sections: [{ title: 'Credits', highlight: { value: '0.9%', caption: 'used', detail: '9.97 / 1,000' } }],
+    sections: [{ title: 'Credits', highlight: { value: '0.9%', caption: 'used', alt: { value: '9.97 / 1,000', caption: 'used' } } }],
   });
-  assert.match(html, /<tr><td><h3>0\.9% <small>.*used.*<\/small><\/h3><\/td><td align="right"><span style="[^"]+">9\.97 \/ 1,000<\/span><\/td><\/tr>/);
-  assert.deepEqual(droppedBySanitizer(html), []);
+  assert.match(
+    html,
+    /<tr class="swap" tabindex="0"><td colspan="2"><h3><span class="swap-main">0\.9% <small>.*used.*<\/small><\/span><span class="swap-alt">9\.97 \/ 1,000 <small>.*used.*<\/small><\/span><\/h3><\/td><\/tr>/,
+  );
+  const plain = renderPanel({ ...DATA, sections: [{ title: 'Credits', highlight: { value: '5%', caption: 'used' } }] });
+  assert.ok(!plain.includes('swap'), 'no swap without an alternative value');
+});
+
+test('rows with altValue swap the value; others stay static', () => {
+  const html = renderPanel({
+    ...DATA,
+    sections: [{ title: 'Last interaction', rows: [
+      { label: 'Context', value: '8%', altValue: '≈16K tokens' },
+      { label: 'Requests', value: '3' },
+    ] }],
+  });
+  assert.match(html, /<tr class="swap" tabindex="0"><td>.*Context.*<\/td><td align="right"><span class="swap-main">8%<\/span><span class="swap-alt">≈16K tokens<\/span><\/td><\/tr>/);
+  assert.match(html, /<tr><td>.*Requests.*<\/td><td align="right">3<\/td><\/tr>/);
+  assert.ok(!renderPanel({ ...DATA, sections: [{ title: 'x', rows: [{ label: 'a', value: '<b>', altValue: '<i>' }] }] }).includes('<i>'));
+});
+
+const WEBVIEW: WebviewOptions = {
+  language: 'en',
+  cspSource: 'https://test.vscode-cdn.net',
+  logoFontUri: 'https://test.vscode-cdn.net/media/kirorelay-icons.woff',
+  codiconsUri: 'https://test.vscode-cdn.net/dist/codicons/codicon.css',
+};
+
+test('webview embeds the complete panel, restricts resources and supports themes without scripts', () => {
+  const html = renderPanelWebview(DATA, WEBVIEW);
+  assert.match(html, /^<!DOCTYPE html>\n<html lang="en">/);
+  assert.ok(html.includes(`<body><main>${renderPanel(DATA)}</main></body>`));
+  assert.match(html, /Content-Security-Policy/);
+  assert.ok(html.includes('default-src &#39;none&#39;'));
+  assert.ok(html.includes('img-src data:;'));
+  assert.ok(html.includes(`font-src ${WEBVIEW.cspSource};`));
+  assert.ok(html.includes(`style-src ${WEBVIEW.cspSource} &#39;unsafe-inline&#39;;`));
+  assert.match(html, /var\(--vscode-panel-background\)/);
+  assert.match(html, /a:focus-visible/);
+  assert.match(html, /\.swap \.swap-alt,\n\.swap:hover \.swap-main,\n\.swap:focus \.swap-main \{ display: none; \}/);
+  assert.match(html, /\.swap:hover \.swap-alt,\n\.swap:focus \.swap-alt \{ display: inline; \}/);
+  assert.ok(!/<script\b|<iframe\b/.test(html));
+  const links = [...html.matchAll(/<link\b[^>]*>/g)].map((m) => m[0]);
+  assert.deepEqual(links, [`<link rel="stylesheet" href="${WEBVIEW.codiconsUri}">`], 'only the codicons stylesheet');
+  assert.ok(html.includes(`url("${WEBVIEW.logoFontUri}")`));
+});
+
+test('webview escapes document metadata as well as panel content', () => {
+  const html = renderPanelWebview(
+    { ...DATA, title: '</title><script>alert(1)</script>' },
+    { ...WEBVIEW, language: 'en" onload="alert(1)' },
+  );
+  assert.ok(!html.includes('<script>'));
+  assert.ok(!html.includes('lang="en" onload='));
+  assert.ok(html.includes('lang="en&#34; onload=&#34;alert(1)"'));
+});
+
+test('panel actions are restricted to an explicit command allowlist', () => {
+  const data: PanelData = {
+    ...DATA,
+    links: PANEL_COMMANDS.filter((id) => id.startsWith('kirorelay.')).map((id) => ({
+      label: id,
+      href: `command:${id}`,
+    })),
+  };
+  const html = renderPanelWebview(data, WEBVIEW);
+  for (const match of html.matchAll(/href="command:([^"?]+)(?:\?[^"]*)?"/g)) {
+    assert.ok(PANEL_COMMANDS.some((id) => id === match[1]), `command not allowed: ${match[1]}`);
+  }
+  assert.ok(!PANEL_COMMANDS.some((id: string) => id === 'workbench.action.terminal.new'));
+});
+
+test('tooltip contains only localized token and session expiry as plain text', () => {
+  assert.equal(
+    renderTooltip({
+      tokenLabel: 'Token',
+      tokenValue: '9 min left',
+      sessionLabel: 'Kiro session',
+      sessionValue: 'approximately 7 h left (estimate)',
+    }),
+    'Token: 9 min left\nKiro session: approximately 7 h left (estimate)',
+  );
+  assert.equal(
+    renderTooltip({
+      tokenLabel: 'Token',
+      tokenValue: 'Kiro: sign-in required',
+      sessionLabel: 'Sessão do Kiro',
+      sessionValue: 'Indisponível',
+    }),
+    'Token: Kiro: sign-in required\nSessão do Kiro: Indisponível',
+  );
 });

@@ -23,7 +23,8 @@
 
     // Set environment variables for the remote container.
     "remoteEnv": {
-        "PATH": "${containerEnv:PATH}:/home/vscode/.local/bin"
+        "PATH": "${containerEnv:PATH}:/home/vscode/.local/bin",
+        "KIRO_RELAY_INSTALL_CLI": "1"
     },
 
     // Use 'runArgs' to make an array of Docker CLI arguments that should be used when running the container.

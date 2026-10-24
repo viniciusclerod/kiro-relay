@@ -2,7 +2,7 @@
   "name": "kiro-relay",
   "displayName": "%displayName%",
   "description": "%description%",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "publisher": "viniciusclerod",
   "license": "MIT",
   "preview": true,
@@ -16,7 +16,7 @@
   },
   "homepage": "https://github.com/viniciusclerod/kiro-relay#readme",
   "engines": {
-    "vscode": "^1.104.0",
+    "vscode": "^1.106.0",
     "node": ">=22.18"
   },
   "categories": [
@@ -38,7 +38,30 @@
     "onStartupFinished"
   ],
   "contributes": {
+    "viewsContainers": {
+      "secondarySidebar": [
+        {
+          "id": "kirorelay-panel",
+          "title": "Kiro Relay",
+          "icon": "media/kiro-relay.svg"
+        }
+      ]
+    },
+    "views": {
+      "kirorelay-panel": [
+        {
+          "type": "webview",
+          "id": "kirorelay.statusPanel",
+          "name": "%view.statusPanel.name%"
+        }
+      ]
+    },
     "commands": [
+      {
+        "command": "kirorelay.togglePanel",
+        "title": "%command.togglePanel.title%",
+        "category": "Kiro Relay"
+      },
       {
         "command": "kirorelay.diagnose",
         "title": "%command.diagnose.title%",
@@ -260,6 +283,7 @@
     "@resvg/resvg-js": "^2.6.2",
     "@types/node": "^22.10.0",
     "@types/vscode": "^1.104.0",
+    "@vscode/codicons": "^0.0.46-24",
     "@vscode/vsce": "^3.0.0",
     "esbuild": "^0.25.0",
     "svg2ttf": "^6.1.0",

@@ -5,7 +5,7 @@ import * as vscode from 'vscode';
 import { runDiagnostics } from './auth/diagnose.ts';
 import { KiroAuthError, NotLoggedInError, TokenExpiredError } from './auth/errors.ts';
 import { createAuth, type AuthConfig, type SourceId } from './auth/factory.ts';
-import { LoginSettingsError, buildLoginArgs, type LoginSettings } from './auth/login.ts';
+import { LoginSettingsError, buildInstallCommand, buildLoginArgs, isCliInstalled, type LoginSettings } from './auth/login.ts';
 import { formatHoursMinutes } from './auth/redact.ts';
 import { SessionTracker, type SessionRecord } from './auth/session.ts';
 import { FirstOutputTimeoutError, streamChat } from './chat/client.ts';
@@ -16,7 +16,9 @@ import { fromVsCodeMessages, fromVsCodeTools } from './chat/vscodeMessages.ts';
 import { UsageTracker, creditItem, formatPercent, type UsageSummary } from './kiro/usage.ts';
 import { KiroApiError, ModelCatalog, toChatModelInfo, type ChatModelInfo } from './models/catalog.ts';
 import { resolveEffort } from './models/effort.ts';
-import { barColorsFor, renderPanel, type PanelLink, type PanelRow, type PanelSection } from './ui/panel.ts';
+import { barColorsFor, type PanelData, type PanelLink, type PanelRow, type PanelSection } from './ui/panel.ts';
+import { renderTooltip } from './ui/tooltip.ts';
+import { PANEL_COMMANDS, renderPanelWebview } from './ui/webview.ts';
 
 /**
  * Model info sent to VS Code. `statusIcon` is proposed API (not in @types/vscode); VS Code 1.142 uses
@@ -162,8 +164,10 @@ export function activate(context: vscode.ExtensionContext): void {
     },
     () => vscode.workspace.getConfiguration('kirorelay').get<number>('auth.sessionHours', 8),
   );
-  /** Context window of the model of the last interaction, for the token estimate in the hover. */
+  /** Context window of the model of the last interaction, for the token estimate in the panel. */
   let lastTurnMaxInput = 0;
+  /** Display name of the model of the last interaction. */
+  let lastTurnModel: string | undefined;
   const modelsChanged = new vscode.EventEmitter<void>();
   let lastTokenOk: boolean | undefined;
 
@@ -286,6 +290,7 @@ export function activate(context: vscode.ExtensionContext): void {
               closeThinking();
               turnUsage.add(turnKey, event.credits, event.contextUsagePercentage);
               lastTurnMaxInput = maxInputTokens;
+              lastTurnModel = model.name;
               renderStatus();
               refreshUsageSoon();
               log(
@@ -320,16 +325,65 @@ export function activate(context: vscode.ExtensionContext): void {
 
   const status = vscode.window.createStatusBarItem('kirorelay.status', vscode.StatusBarAlignment.Right, 50);
   status.name = 'Kiro Relay';
-  // Hover = the Copilot-style panel. VS Code only opens a status bar hover on click for its own items
-  // (Copilot uses an internal command compared by identity), so a click refreshes the panel quietly.
-  status.command = 'kirorelay.refreshPanel';
+  status.command = 'kirorelay.togglePanel';
+  let panelView: vscode.WebviewView | undefined;
+  /** Last HTML sent: setting the same HTML again would reload the view and reset hover and scroll. */
+  let panelHtml = '';
+
+  function renderView(): void {
+    if (!panelView?.visible) return;
+    const webview = panelView.webview;
+    const asset = (...p: string[]) => webview.asWebviewUri(vscode.Uri.joinPath(context.extensionUri, ...p)).toString();
+    const html = renderPanelWebview(panelData(), {
+      language: vscode.env.language,
+      cspSource: webview.cspSource,
+      logoFontUri: asset('media', 'kirorelay-icons.woff'),
+      codiconsUri: asset('dist', 'codicons', 'codicon.css'),
+    });
+    if (html !== panelHtml) {
+      panelHtml = html;
+      webview.html = html;
+    }
+  }
+
+  const panelProvider = vscode.window.registerWebviewViewProvider('kirorelay.statusPanel', {
+    resolveWebviewView(view) {
+      panelView = view;
+      panelHtml = '';
+      view.webview.options = {
+        enableScripts: false,
+        enableCommandUris: [...PANEL_COMMANDS],
+        localResourceRoots: [
+          vscode.Uri.joinPath(context.extensionUri, 'media'),
+          vscode.Uri.joinPath(context.extensionUri, 'dist', 'codicons'),
+        ],
+      };
+      const visibility = view.onDidChangeVisibility(() => {
+        panelHtml = '';
+        renderView();
+      });
+      view.onDidDispose(() => {
+        visibility.dispose();
+        if (panelView === view) panelView = undefined;
+      });
+      renderView();
+    },
+  });
+  const togglePanel = vscode.commands.registerCommand('kirorelay.togglePanel', async () => {
+    if (panelView?.visible) {
+      await vscode.commands.executeCommand('workbench.action.closeAuxiliaryBar');
+    } else {
+      await vscode.commands.executeCommand('kirorelay.statusPanel.focus');
+    }
+  });
 
   /** What the status bar and the menu show, refreshed by refreshStatus(). */
   let state: {
     kind: 'ok' | 'expired' | 'signed-out' | 'error';
     summary: string;
     detail?: string;
-    remaining?: string;
+    /** Access token expiry; remaining time is computed when rendering. */
+    expiresAt?: Date;
     /** e.g. "IAM Identity Center · https://example.awsapps.com/start · us-east-1" (no secrets). */
     login?: string;
   } = {
@@ -344,7 +398,7 @@ export function activate(context: vscode.ExtensionContext): void {
         kind: 'ok',
         summary: vscode.l10n.t('Signed in, token valid for {0}', formatHoursMinutes(t.expiresAt.getTime() - Date.now())),
         detail: [t.source, t.region].filter(Boolean).join(' · '),
-        remaining: formatHoursMinutes(t.expiresAt.getTime() - Date.now()),
+        expiresAt: t.expiresAt,
         login: [t.startUrl ? vscode.l10n.t('IAM Identity Center') : undefined, t.startUrl, t.region]
           .filter(Boolean)
           .join(' · '),
@@ -376,6 +430,27 @@ export function activate(context: vscode.ExtensionContext): void {
 
   const fmtPercent1 = (n: number) => n.toLocaleString(lang, { maximumFractionDigits: 1 });
   const fmtCompact = (n: number) => n.toLocaleString(lang, { notation: 'compact', maximumFractionDigits: 1 });
+  /**
+   * Clock time with its time zone: the extension host may run in a container in UTC, so the zone
+   * is always shown ("14:32 UTC"). The date is added when it is not today.
+   */
+  const fmtClock = (d: Date) => {
+    const sameDay = d.toDateString() === new Date().toDateString();
+    return d.toLocaleString(lang, {
+      ...(sameDay ? {} : { month: 'short', day: 'numeric' }),
+      hour: '2-digit',
+      minute: '2-digit',
+      timeZoneName: 'short',
+    });
+  };
+  const fmtAgo = (d: Date) => {
+    const minutes = Math.floor((Date.now() - d.getTime()) / 60_000);
+    if (minutes < 1) return vscode.l10n.t('just now');
+    const rtf = new Intl.RelativeTimeFormat(lang, { numeric: 'always' });
+    return minutes < 60 ? rtf.format(-minutes, 'minute') : rtf.format(-Math.floor(minutes / 60), 'hour');
+  };
+  const tokenLeft = () =>
+    vscode.l10n.t('{0} left', state.expiresAt ? formatHoursMinutes(state.expiresAt.getTime() - Date.now()) : '?');
 
   /** One line about credits, for the menu (plain text). */
   function creditsLine(u: UsageSummary | undefined): string | undefined {
@@ -387,26 +462,18 @@ export function activate(context: vscode.ExtensionContext): void {
     return `${c.name}: ${amount}${pct}`;
   }
 
-  /** Copilot-style hover panel (layout in src/ui/panel.ts). */
-  function usageTooltip(): vscode.MarkdownString {
-    const md = new vscode.MarkdownString(undefined, true);
-    md.supportHtml = true;
-    md.isTrusted = {
-      enabledCommands: [
-        'kirorelay.refreshPanel',
-        'kirorelay.manage',
-        'kirorelay.diagnose',
-        'kirorelay.signIn',
-        'workbench.action.openSettings',
-      ],
-    };
+  function panelData(): PanelData {
     const u = usage.current;
     const sections: PanelSection[] = [];
 
     // Account
     if (state.kind === 'ok') {
       const rows: PanelRow[] = [
-        { label: vscode.l10n.t('Token'), value: vscode.l10n.t('{0} left', state.remaining ?? '?') },
+        {
+          label: vscode.l10n.t('Token'),
+          value: tokenLeft(),
+          altValue: state.expiresAt ? vscode.l10n.t('expires {0}', fmtClock(state.expiresAt)) : undefined,
+        },
         { label: vscode.l10n.t('Kiro session'), ...sessionValue() },
       ];
       if (state.login) {
@@ -448,16 +515,37 @@ export function activate(context: vscode.ExtensionContext): void {
         rows.push({ label: b.name, value: `${fmtNumber(b.used)} / ${fmtNumber(b.total)}${expires}`, icon: 'gift' });
       }
       if (u.overagesEnabled) rows.push({ label: vscode.l10n.t('Overages'), value: vscode.l10n.t('Enabled') });
+      const updatedAt = usage.updatedAt;
+      if (updatedAt) {
+        rows.push({
+          label: vscode.l10n.t('Updated'),
+          value: fmtAgo(updatedAt),
+          altValue: fmtClock(updatedAt),
+          mutedValue: true,
+        });
+      }
       sections.push({
         title: c.name,
-        aside: u.resetsAt ? vscode.l10n.t('Resets {0}', fmtResetDay(u.resetsAt)) : undefined,
+        aside: u.resetsAt
+          ? vscode.l10n.t('Resets {0}', u.resetsAt.toLocaleString(lang, {
+              month: 'short',
+              day: 'numeric',
+              hour: '2-digit',
+              minute: '2-digit',
+              timeZone: 'UTC',
+              timeZoneName: 'short',
+            }))
+          : undefined,
         highlight:
           percent === undefined
             ? undefined
             : {
                 value: `${percent}%`,
                 caption: vscode.l10n.t('used'),
-                detail: c.limit === undefined ? undefined : `${fmtNumber(c.used)} / ${fmtNumber(c.limit)}`,
+                alt:
+                  c.limit === undefined
+                    ? undefined
+                    : { value: `${fmtNumber(c.used)} / ${fmtNumber(c.limit)}`, caption: vscode.l10n.t('used') },
               },
         progress: c.limit === undefined ? undefined : (c.used / c.limit) * 100,
         rows,
@@ -466,15 +554,20 @@ export function activate(context: vscode.ExtensionContext): void {
       sections.push({ title: vscode.l10n.t('Credits'), aside: vscode.l10n.t('Credit usage unavailable.'), asideIcon: 'warning' });
     }
 
-    // Last interaction
+    // Last interaction (in this window); shown even before the first one so the section does not jump in.
     const last = turnUsage.last;
     if (last) {
       const rows: PanelRow[] = [];
+      if (lastTurnModel) rows.push({ label: vscode.l10n.t('Model'), value: lastTurnModel });
       if (last.contextPercent !== undefined) {
         const tokens = estimateContextTokens(last.contextPercent, lastTurnMaxInput);
         rows.push({
           label: vscode.l10n.t('Context'),
-          value: `${fmtPercent1(last.contextPercent)}%${tokens === undefined ? '' : ` · ≈${fmtCompact(tokens)} tokens`}`,
+          value: `${fmtPercent1(last.contextPercent)}%`,
+          altValue:
+            tokens === undefined
+              ? undefined
+              : vscode.l10n.t('≈{0} / {1} tokens', fmtCompact(tokens), fmtCompact(lastTurnMaxInput)),
         });
       }
       if (last.requests > 1) rows.push({ label: vscode.l10n.t('Requests'), value: String(last.requests) });
@@ -482,6 +575,11 @@ export function activate(context: vscode.ExtensionContext): void {
       const count = sess.interactions === 1 ? vscode.l10n.t('1 interaction') : vscode.l10n.t('{0} interactions', sess.interactions);
       rows.push({ label: vscode.l10n.t('This session'), value: `${vscode.l10n.t('{0} credits', fmtNumber(sess.credits))} · ${count}` });
       sections.push({ title: vscode.l10n.t('Last interaction'), aside: vscode.l10n.t('{0} credits', fmtNumber(last.credits)), rows });
+    } else {
+      sections.push({
+        title: vscode.l10n.t('Last interaction'),
+        rows: [{ label: vscode.l10n.t('No Kiro model used in this window yet.'), value: '' }],
+      });
     }
 
     const links: PanelLink[] = [
@@ -494,16 +592,13 @@ export function activate(context: vscode.ExtensionContext): void {
     }
 
     const settingsArg = encodeURIComponent(JSON.stringify([`@ext:${context.extension.id}`]));
-    md.appendMarkdown(
-      renderPanel({
-        barColors: barColorsFor(themeKind()),
-        title: u?.plan ? `Kiro ${planName(u.plan).replace(/^Kiro\s+/i, '')}` : 'Kiro Relay',
-        settings: { href: `command:workbench.action.openSettings?${settingsArg}`, tooltip: vscode.l10n.t('Open settings') },
-        sections,
-        links,
-      }),
-    );
-    return md;
+    return {
+      barColors: barColorsFor(themeKind()),
+      title: u?.plan ? `Kiro ${planName(u.plan).replace(/^Kiro\s+/i, '')}` : 'Kiro Relay',
+      settings: { href: `command:workbench.action.openSettings?${settingsArg}`, tooltip: vscode.l10n.t('Open settings') },
+      sections,
+      links,
+    };
   }
 
   function themeKind(): 'light' | 'dark' | 'highContrast' | 'highContrastLight' {
@@ -519,17 +614,23 @@ export function activate(context: vscode.ExtensionContext): void {
     }
   }
 
-  /** Remaining time of the IAM Identity Center session, marked "≈" when estimated. */
-  function sessionValue(): { value: string; mutedValue?: boolean } {
+  /** Remaining time of the IAM Identity Center session, marked "≈" when estimated; end time as alternative. */
+  function sessionValue(): { value: string; altValue?: string; mutedValue?: boolean } {
     const est = session.estimate();
     const left = est.endsAt ? est.endsAt.getTime() - Date.now() : undefined;
-    if (left === undefined || left <= 0) {
+    if (left !== undefined && left <= 0) {
+      return { value: vscode.l10n.t('Expired') };
+    }
+    if (left === undefined || !est.endsAt) {
       const hours = vscode.workspace.getConfiguration('kirorelay').get<number>('auth.sessionHours', 8);
       // The sign-in happened before Kiro Relay could see it: the end is learned near it, or at the next sign-in.
       return { value: vscode.l10n.t('not tracked (signed in earlier, up to {0} h)', hours), mutedValue: true };
     }
     const text = vscode.l10n.t('{0} left', formatHoursMinutes(left));
-    return { value: est.exact ? text : `≈ ${text} (${vscode.l10n.t('estimate')})` };
+    const ends = vscode.l10n.t('ends {0}', fmtClock(est.endsAt));
+    return est.exact
+      ? { value: text, altValue: ends }
+      : { value: `≈ ${text} (${vscode.l10n.t('estimate')})`, altValue: `≈ ${ends} (${vscode.l10n.t('estimate')})` };
   }
 
   function renderStatus(): void {
@@ -543,8 +644,14 @@ export function activate(context: vscode.ExtensionContext): void {
         state.kind === 'error' ? 'statusBarItem.errorBackground' : 'statusBarItem.warningBackground',
       );
     }
-    status.tooltip = usageTooltip();
+    status.tooltip = renderTooltip({
+      tokenLabel: vscode.l10n.t('Token'),
+      tokenValue: state.kind === 'ok' ? tokenLeft() : state.summary,
+      sessionLabel: vscode.l10n.t('Kiro session'),
+      sessionValue: state.kind === 'ok' ? sessionValue().value : vscode.l10n.t('Unavailable'),
+    });
     status.show();
+    renderView();
   }
 
   const diagnose = vscode.commands.registerCommand('kirorelay.diagnose', async () => {
@@ -619,6 +726,47 @@ export function activate(context: vscode.ExtensionContext): void {
       const open = vscode.l10n.t('Open settings');
       const pick = await vscode.window.showErrorMessage(vscode.l10n.t('Invalid setting {0}: {1}', e.setting, e.message), open);
       if (pick === open) await vscode.commands.executeCommand('workbench.action.openSettings', e.setting);
+      return;
+    }
+    let installed: boolean;
+    try {
+      installed = await isCliInstalled(cliPath);
+    } catch {
+      const open = vscode.l10n.t('Open settings');
+      const pick = await vscode.window.showErrorMessage(
+        vscode.l10n.t('Could not run kiro-cli at {0}. Check permissions and the executable path.', cliPath), open,
+      );
+      if (pick === open) await vscode.commands.executeCommand('workbench.action.openSettings', 'kirorelay.cli.path');
+      return;
+    }
+    if (!installed) {
+      const command = buildInstallCommand(process.platform);
+      const docs = vscode.l10n.t('Installation instructions');
+      if (!command) {
+        const pick = await vscode.window.showWarningMessage(
+          vscode.l10n.t('Automatic kiro-cli installation is not available on this platform.'), docs,
+        );
+        if (pick === docs) await vscode.env.openExternal(vscode.Uri.parse('https://kiro.dev/docs/cli/'));
+        return;
+      }
+      const install = vscode.l10n.t('Install kiro-cli');
+      const open = vscode.l10n.t('Open settings');
+      const detail = process.platform === 'win32'
+        ? vscode.l10n.t('The official installer will run in WSL. An initialized WSL distribution is required. After installation, reopen this workspace in WSL and sign in there.')
+        : vscode.l10n.t('The official installer will run in a terminal in the environment hosting this extension. After installation, check kirorelay.cli.path and run Sign In again. Reload VS Code if PATH changed.');
+      const pick = await vscode.window.showWarningMessage(
+        vscode.l10n.t('kiro-cli was not found at {0}. Install it now?', cliPath),
+        { modal: true, detail: `${detail}\n\n${[command.shellPath, ...command.shellArgs].join(' ')}` },
+        install, open, docs,
+      );
+      if (pick === install) {
+        const terminal = vscode.window.createTerminal({ name: 'kiro-cli install', ...command });
+        terminal.show();
+      } else if (pick === open) {
+        await vscode.commands.executeCommand('workbench.action.openSettings', 'kirorelay.cli.path');
+      } else if (pick === docs) {
+        await vscode.env.openExternal(vscode.Uri.parse('https://kiro.dev/docs/cli/'));
+      }
       return;
     }
     log(`sign-in: running "${cliPath} ${args.join(' ')}" in a terminal`);
@@ -698,6 +846,8 @@ export function activate(context: vscode.ExtensionContext): void {
     signIn,
     refreshUsageCmd,
     refreshPanelCmd,
+    togglePanel,
+    panelProvider,
     onConfig,
     onTheme,
     { dispose: () => usageTimers.forEach((t) => clearTimeout(t)) },

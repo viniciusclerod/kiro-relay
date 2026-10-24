@@ -13,3 +13,4 @@ CLAUDE.md
 .gitignore
 .claude/**
 media/*.svg
+!media/kiro-relay.svg

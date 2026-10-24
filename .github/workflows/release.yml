@@ -97,7 +97,9 @@ jobs:
           VERSION: ${{ steps.meta.outputs.version }}
           VSIX: ${{ steps.meta.outputs.vsix }}
         run: |
-          gh release upload "v$VERSION" "$VSIX" --clobber
+          if ! gh release view "v$VERSION" --json assets --jq '.assets[].name' | grep -Fxq "$VSIX"; then
+            gh release upload "v$VERSION" "$VSIX"
+          fi
 
       - name: Publish to the VS Code Marketplace
         id: marketplace

@@ -5,6 +5,8 @@
   "command.reloadCredentials.title": "Reload Credentials",
   "command.refreshModels.title": "Refresh Models",
   "command.manage.title": "Manage",
+  "command.togglePanel.title": "Toggle Status Panel",
+  "view.statusPanel.name": "Status",
   "config.cli.path.description": "Path to the kiro-cli executable (used for token renewal, sign-in and diagnostics).",
   "config.auth.sources.description": "Credential sources, in priority order. 'kiro-cli-db' = kiro-cli's SQLite database; 'sso-cache' = ~/.aws/sso/cache/kiro-auth-token.json.",
   "config.auth.databasePath.description": "Path to kiro-cli's data.sqlite3. Empty = detect automatically.",

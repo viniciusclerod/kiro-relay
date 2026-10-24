@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.1.0 — 2026-10-24
+
+First preview release.
+
+- Added a Kiro Relay status panel in the secondary side bar. The status bar icon toggles the panel;
+  its hover shows token and session expiry. The panel includes plan and credit usage, reset time,
+  account details, and the latest interaction's model, context and credits.
+- Added an optional, confirmation-gated `kiro-cli` installer to Sign In. macOS and Linux run the
+  official installer in the extension host environment; Windows runs it in WSL. Unsupported
+  platforms and executable errors provide guidance without attempting installation.
+- Added an environment switch to skip `kiro-cli` installation in the devcontainer, making the
+  missing-CLI flow testable.
+- Raised the minimum supported VS Code version to 1.106 for the secondary side bar.
+- Includes Kiro model discovery, streaming chat, Agent-mode tool calls, image input, supported
+  thinking effort, credit tracking, and cooperative credential renewal through `kiro-cli`.
+- English is the default language; the UI is translated to Brazilian Portuguese. Logs and the
+  diagnostics report remain in English.
+
 ## 0.0.0 — 2026-10-21
 
 First preview.

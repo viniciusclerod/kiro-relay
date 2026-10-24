@@ -7,6 +7,18 @@ install_dependencies() {
 }
 
 install_kiro_cli() {
+	case "${KIRO_RELAY_INSTALL_CLI-1}" in
+		0)
+			echo "Skipping Kiro CLI installation (KIRO_RELAY_INSTALL_CLI=0)."
+			return
+			;;
+		1) ;;
+		*)
+			echo "KIRO_RELAY_INSTALL_CLI must be 0 or 1." >&2
+			return 1
+			;;
+	esac
+
 	local kiro_cli="$HOME/.local/bin/kiro-cli"
 
 	if [ -x "$kiro_cli" ]; then

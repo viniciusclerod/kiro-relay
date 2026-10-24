@@ -146,9 +146,13 @@ test('UsageTracker: TTL, single-flight, last good value on failure, onChange', a
     onChange: (u) => changes.push(u.plan ?? '?'),
   });
   assert.equal(tracker.current, undefined);
+  const updatedAt = (): Date | undefined => tracker.updatedAt;
+  assert.equal(updatedAt(), undefined);
+  now = 100;
   await Promise.all([tracker.refresh(), tracker.refresh()]);
   assert.equal(calls, 1);
   assert.deepEqual(changes, ['KIRO PRO']);
+  assert.equal(updatedAt()?.getTime(), 100);
 
   now = 500;
   await tracker.refresh();
@@ -158,6 +162,7 @@ test('UsageTracker: TTL, single-flight, last good value on failure, onChange', a
   const kept = await tracker.refresh({ force: true });
   assert.equal(calls, 2);
   assert.equal(kept?.plan, 'KIRO PRO');
+  assert.equal(updatedAt()?.getTime(), 100, 'a failure keeps the time of the last good value');
   assert.match(tracker.lastError!, /HTTP 500/);
   assert.deepEqual(changes, ['KIRO PRO'], 'no change event on failure');
 

@@ -1,14 +1,13 @@
-// HTML for the status bar hover, laid out like the Copilot status panel. Pure module: no vscode.
-//
-// Markdown hovers (VS Code 1.142) keep only a subset of HTML (see test/panel.test.ts, which checks
-// the output against the same rules): tables with width/align/colspan, <hr>, headings, <small>,
-// <a href>, <span class="codicon codicon-…">, and <span style> limited to color, background-color,
-// display:inline-block and border-radius, in that order. Strings come in already localized.
+// HTML for the status panel webview (src/ui/webview.ts). Pure module: no vscode.
+// Strings come in already localized. Rows with an alternative value swap it in on mouse-over or
+// keyboard focus through CSS only (the webview runs without scripts).
 
 export interface PanelRow {
   label: string;
   /** Right-aligned value (plain text). */
   value: string;
+  /** Shown instead of `value` while the row is hovered or focused. */
+  altValue?: string;
   /** Muted value (description color). */
   mutedValue?: boolean;
   /** Optional link for the value. */
@@ -19,15 +18,14 @@ export interface PanelRow {
 
 export interface PanelSection {
   title: string;
-  /** Right side of the title row (muted), e.g. "Resets Nov 1". */
+  /** Right side of the title row (muted), e.g. "Resets Nov 1, 12:00 AM UTC". */
   aside?: string;
   asideIcon?: string;
   /**
-   * Big number under the title, e.g. "0.9%" + "used", with `detail` right-aligned on the same line
-   * (e.g. "9.97 / 1,000"). Copilot swaps them on mouse-over; extension hovers cannot run scripts or
-   * :hover styles, so both are shown.
+   * Big number under the title, e.g. "0.9%" + "used". `alt` (e.g. "9.97 / 1,000" + "used") replaces
+   * it on mouse-over, like the Copilot panel.
    */
-  highlight?: { value: string; caption: string; detail?: string };
+  highlight?: { value: string; caption: string; alt?: { value: string; caption: string } };
   /** 0..100: thin bar under the highlight. */
   progress?: number;
   rows?: PanelRow[];
@@ -105,12 +103,18 @@ export function progressBar(percent: number, colors: BarColors): string {
   return `<img src="data:image/svg+xml;base64,${Buffer.from(svg).toString('base64')}" width="100%" height="4" alt="${p.toFixed(1)}%">`;
 }
 
-function row(left: string, right: string): string {
-  return `<tr><td>${left}</td><td align="right">${right}</td></tr>`;
+const SWAP_ROW = ' class="swap" tabindex="0"';
+
+function row(left: string, right: string, swappable = false): string {
+  return `<tr${swappable ? SWAP_ROW : ''}><td>${left}</td><td align="right">${right}</td></tr>`;
 }
 
-function fullRow(html: string): string {
-  return `<tr><td colspan="2">${html}</td></tr>`;
+function swap(main: string, alt: string): string {
+  return `<span class="swap-main">${main}</span><span class="swap-alt">${alt}</span>`;
+}
+
+function fullRow(html: string, swappable = false): string {
+  return `<tr${swappable ? SWAP_ROW : ''}><td colspan="2">${html}</td></tr>`;
 }
 
 /**
@@ -121,16 +125,19 @@ function sectionHtml(s: PanelSection, colors: BarColors): string {
   const aside = s.aside ? muted(`${s.asideIcon ? `${icon(s.asideIcon)} ` : ''}${escapeHtml(s.aside)}`) : '';
   const rows = [row(`<strong>${escapeHtml(s.title)}</strong>`, aside)];
   if (s.highlight) {
-    const big = `<h3>${escapeHtml(s.highlight.value)} <small>${muted(escapeHtml(s.highlight.caption))}</small></h3>`;
-    rows.push(row(big, s.highlight.detail ? muted(escapeHtml(s.highlight.detail)) : ''));
+    const big = (h: { value: string; caption: string }) =>
+      `${escapeHtml(h.value)} <small>${muted(escapeHtml(h.caption))}</small>`;
+    const alt = s.highlight.alt;
+    const content = alt ? swap(big(s.highlight), big(alt)) : big(s.highlight);
+    rows.push(fullRow(`<h3>${content}</h3>`, !!alt));
   }
   if (s.progress !== undefined) rows.push(fullRow(progressBar(s.progress, colors)));
   for (const r of s.rows ?? []) {
-    let value = escapeHtml(r.value);
+    let value = r.altValue === undefined ? escapeHtml(r.value) : swap(escapeHtml(r.value), escapeHtml(r.altValue));
     if (r.href) value = link(r.href, value);
     if (r.mutedValue) value = muted(value);
     if (r.icon) value = `${icon(r.icon)} ${value}`;
-    rows.push(row(muted(escapeHtml(r.label)), value));
+    rows.push(row(muted(escapeHtml(r.label)), value, r.altValue !== undefined));
   }
   return `<table width="100%">${rows.join('')}</table>`;
 }

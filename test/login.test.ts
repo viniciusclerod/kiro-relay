@@ -1,6 +1,44 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { LoginSettingsError, buildLoginArgs, isValidStartUrl } from '../src/auth/login.ts';
+import { LoginSettingsError, buildInstallCommand, buildLoginArgs, isCliInstalled, isValidStartUrl } from '../src/auth/login.ts';
+
+test('CLI detection probes the configured executable without signing in', async () => {
+  assert.equal(await isCliInstalled('/custom/kiro-cli', async (file, args, options) => {
+    assert.equal(file, '/custom/kiro-cli');
+    assert.deepEqual(args, ['--version']);
+    assert.equal(options.timeout, 5_000);
+    return { exitCode: 0 };
+  }), true);
+});
+
+test('only a missing executable triggers installation', async () => {
+  assert.equal(await isCliInstalled('kiro-cli', async () => {
+    throw Object.assign(new Error('missing'), { code: 'ENOENT' });
+  }), false);
+  for (const code of ['EACCES', 'ETIMEDOUT']) {
+    await assert.rejects(isCliInstalled('kiro-cli', async () => {
+      throw Object.assign(new Error('failed'), { code });
+    }), { code });
+  }
+  assert.equal(await isCliInstalled('kiro-cli', async () => ({ exitCode: 1 })), true);
+});
+
+test('macOS and Linux use the official installer with pipeline failure propagation', () => {
+  for (const platform of ['darwin', 'linux'] as const) {
+    assert.deepEqual(buildInstallCommand(platform), {
+      shellPath: '/bin/bash',
+      shellArgs: ['-c', 'set -o pipefail; curl -fsSL https://cli.kiro.dev/install | bash'],
+    });
+  }
+  assert.equal(buildInstallCommand('freebsd'), undefined);
+});
+
+test('Windows installs inside WSL rather than invoking a Unix installer on the host', () => {
+  assert.deepEqual(buildInstallCommand('win32'), {
+    shellPath: 'wsl.exe',
+    shellArgs: ['--exec', 'bash', '-c', 'set -o pipefail; curl -fsSL https://cli.kiro.dev/install | bash'],
+  });
+});
 
 test('no settings: plain login, device flow only in remote windows', () => {
   assert.deepEqual(buildLoginArgs({}, false), ['login']);

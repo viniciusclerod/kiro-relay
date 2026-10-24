@@ -109,12 +109,19 @@ modelo) é alimentado pelo **participante** (`stream.usage`, Copilot), não pelo
   hora: o `globalState` grava com atraso e perdeu o registro quando a depuração foi parada (visto no F5). **Verificado no F5 (19:30):**
   o token renovado às 19:10 valia só ~20 min, terminando 8 h após o login; após o novo login o painel mostrou "≈ 7 h 58 min". Mostrado como tempo
   restante ("restam …"), nunca hora do relógio: o extension host pode estar em UTC.
-- **Barra de status (decisão do dono):** só o ícone do Kiro (+ ⚠/⛔); hover = painel; clique = `kirorelay.refreshPanel` (relê token,
-  sessão e créditos em silêncio), porque abrir o hover no clique não é possível para extensões; o menu fica no link "Menu" do painel.
-  Barra de progresso: **imagem SVG `data:`** (mídia `data:` é permitida no hover) com `width="100%" height="4"`, cantos
-  arredondados, como a do Copilot. Imagem não lê cores do tema: cores por `ColorThemeKind` (`barColorsFor`), redesenhada em
-  `onDidChangeActiveColorTheme`. A troca de texto no hover do Copilot (créditos ↔ %) é DOM dinâmico, impossível em hover de
-  extensão: percentual grande à esquerda e "usados / limite" à direita na mesma linha (o `title` não ficou perceptível).
+- **Barra de status (decisão do dono, revista em 2026-10-24):** só o ícone do Kiro (+ ⚠/⛔). **Hover** = texto simples com a
+  validade do token e da sessão (`src/ui/tooltip.ts`). **Clique** = `kirorelay.togglePanel`, que abre/fecha a webview
+  `kirorelay.statusPanel` na **barra lateral secundária** (`viewsContainers.secondarySidebar`, estável desde o VS Code 1.106; fechar = `workbench.action.closeAuxiliaryBar`) (como o sino de notificações; o popup do Copilot usa um comando interno comparado por
+  identidade, inalcançável por extensões). A webview (`src/ui/webview.ts`, sem scripts, CSP restrita, `enableCommandUris` com lista
+  fixa) mostra o painel completo de `src/ui/panel.ts`; o menu fica no link "Menu".
+  Barra de progresso: **imagem SVG `data:`** com `width="100%" height="4"`, cantos arredondados, como a do Copilot. Imagem não lê
+  cores do tema: cores por `ColorThemeKind` (`barColorsFor`), redesenhada em `onDidChangeActiveColorTheme`. Troca de texto ao passar
+  o mouse (ou com foco do teclado), só com CSS (`altValue`/`highlight.alt`): créditos % ↔ "usados / limite" (sem
+  "restantes", redundante; a renovação mostra data e hora em UTC); contexto % ↔ "≈usados / janela tokens"; token e sessão tempo restante ↔ hora do vencimento **com fuso** (o host pode
+  estar em UTC); "Atualizado há X" ↔ hora. A seção "Última interação" (modelo, contexto, requisições, "Nesta sessão") aparece mesmo
+  antes do primeiro chat da janela. Ícones: codicons reais (`@vscode/codicons`, copiado para `dist/codicons` pelo `esbuild.mjs`).
+  A webview só recebe HTML novo quando o conteúdo muda (senão recarrega e perde hover/rolagem); os tempos são recalculados a cada
+  verificação de 60 s.
 - **Raciocínio (F5, 2026-10-21):** o modelo `auto` manda um `reasoningContentEvent` com `"..."` (raciocínio oculto). Um
   `ThinkingPart` nunca fechado prendeu a resposta no bloco "Completed N steps". Regra: ignorar raciocínio só com pontos/espaços e
   **fechar** o bloco com `ThinkingPart('', undefined, { vscode_reasoning_done: true })` antes de texto, tool call ou fim (como o Copilot).
@@ -215,7 +222,7 @@ Tratar como observação, não como contrato; o backend muda sem aviso.
 ## API do VS Code usada
 
 Doc: https://code.visualstudio.com/api/extension-guides/ai/language-model-chat-provider · amostra:
-`microsoft/vscode-extension-samples/chat-model-provider-sample`. `engines.vscode: ^1.104.0`.
+`microsoft/vscode-extension-samples/chat-model-provider-sample`. `engines.vscode: ^1.106.0` (barra lateral secundária).
 Contribuição `contributes.languageModelChatProviders` (`vendor`, `displayName`, `managementCommand`). Interface com
 `provideLanguageModelChatInformation(options{silent}, token)`, `provideLanguageModelChatResponse(model, messages, options, progress, token)`,
 `provideTokenCount(model, text, token)`. Partes de resposta estáveis: `LanguageModelTextPart`, `LanguageModelToolCallPart`,

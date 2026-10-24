@@ -21,7 +21,7 @@ model picker, with streaming answers, Agent mode tools, images and thinking effo
 - **Chat with streaming**, in Ask and **Agent mode**: tool calls (read files, run terminal commands,
   edit code…) and **images** for the models that accept them.
 - **Thinking effort per model** (Low … Max) from the model picker, for the models that support it.
-- **Status bar panel** with your plan, **credits used** (with a progress bar and the reset date),
+- **Status bar panel** with your plan, **credits used** (with a progress bar and the reset date and time in UTC),
   the last interaction (credits, context used), and how long the token and the Kiro session last.
 - **No extra login.** Kiro Relay uses the credentials of `kiro-cli` and, when the token expires,
   asks `kiro-cli` to renew it. When the Kiro session ends, one click opens `kiro-cli login`.
@@ -36,16 +36,23 @@ model picker, with streaming answers, Agent mode tools, images and thinking effo
    In a Dev Container, over SSH or in WSL, sign in **inside** that environment with
    `kiro-cli login --use-device-flow`.
 2. Install **Kiro Relay**.
+  Alternatively, run **Kiro Relay: Sign In with kiro-cli** after installing the extension.
+  If the configured executable is missing, Kiro Relay offers to run the official installer
+  in a terminal, with your confirmation. macOS and Linux install in the extension's environment;
+  Windows installs in an initialized WSL distribution. On Windows, reopen the workspace in WSL
+  and sign in there. After installing, check `kirorelay.cli.path` and run Sign In again; reload
+  VS Code if your `PATH` changed.
 3. Open **Chat**, open the model picker and pick a model from the **Kiro** group. If the group is
    not visible, choose **Manage Models…** and enable the Kiro models.
-4. Hover the Kiro Relay icon in the status bar to see your credits; click it to refresh.
+4. Click the Kiro Relay icon in the status bar to toggle the **Kiro Relay** view in the secondary
+   side bar (next to Chat), with your credits and account details. Hover the icon for token and session expiry only.
 
 ## Requirements
 
-- **VS Code 1.104 or newer.** VS Code 1.142 or newer is recommended: the thinking effort menu, the
+- **VS Code 1.106 or newer.** VS Code 1.142 or newer is recommended: the thinking effort menu, the
   model icons and the reasoning display use features that older versions ignore.
-- **`kiro-cli`** installed and signed in, with a Kiro subscription (Kiro Pro through IAM Identity
-  Center, or Builder ID / Google / GitHub).
+- **`kiro-cli`** signed in, with a Kiro subscription (Kiro Pro through IAM Identity Center, or
+  Builder ID / Google / GitHub). If it is not installed, the sign-in command can offer to install it.
 
 ## How it works
 
@@ -60,10 +67,12 @@ model picker, with streaming answers, Agent mode tools, images and thinking effo
 
 ## Privacy and network
 
-- Kiro Relay connects **only to Kiro**: `management.<region>.kiro.dev` (model list, credit usage)
-  and `runtime.<region>.kiro.dev` (chat).
-- It runs **only `kiro-cli`**: `kiro-cli whoami` to renew an expired token, and `kiro-cli login`
-  when you ask it to sign in.
+- For the model list, credit usage and chat, Kiro Relay connects only to Kiro:
+  `management.<region>.kiro.dev` and `runtime.<region>.kiro.dev`.
+- It runs `kiro-cli whoami` to renew an expired token, and `kiro-cli --version` and `kiro-cli login`
+  when you ask it to sign in. If the executable is missing, it can also run the official
+  `curl -fsSL https://cli.kiro.dev/install | bash` installer in a terminal, **only after confirmation**
+  (through `wsl.exe` on Windows). The installer downloads files from Kiro's distribution servers.
 - **No telemetry.** Tokens are never logged or shown. The log and the diagnostics report contain
   field names, dates and short fingerprints only, and no conversation content.
 
@@ -72,7 +81,8 @@ model picker, with streaming answers, Agent mode tools, images and thinking effo
 | Command | What it does |
 |---|---|
 | `Kiro Relay: Manage` | Menu with the connection state and every action below; also the model picker's "Manage" action |
-| `Kiro Relay: Sign In with kiro-cli` | Opens a terminal running `kiro-cli login` with the `kirorelay.login.*` settings |
+| `Kiro Relay: Toggle Status Panel` | Opens or closes the Kiro Relay view in the secondary side bar (next to Chat); also available by clicking the status bar icon |
+| `Kiro Relay: Sign In with kiro-cli` | Opens `kiro-cli login` with the `kirorelay.login.*` settings; offers installation if the executable is missing |
 | `Kiro Relay: Refresh Credit Usage` | Fetches your credit usage again (it also refreshes every 5 minutes and after answers) |
 | `Kiro Relay: Refresh Models` | Fetches the model list again (it is cached for one hour) |
 | `Kiro Relay: Reload Credentials` | Reads the `kiro-cli` credentials again |
@@ -121,7 +131,9 @@ window, `kirorelay.cli.path` appears in the **Remote** tab of the settings.
 
 - The provider tab in the model picker shows a generic ✨ icon: VS Code only shows brand icons for
   a fixed list of vendors.
-- The status bar panel opens on mouse-over. VS Code does not let extensions open it on click.
+- The status bar icon toggles a webview in the secondary side bar (not a floating popup like Copilot's
+  internal status widget). Its **Refresh** link reloads credentials, session and credits.
+  The hover is a separate, plain-text summary of token and session expiry.
 - When Kiro hides a model's reasoning, nothing is shown for it.
 - Kiro reports the context used as a percentage; token counts are estimates.
 - Credit usage takes 30 to 60 seconds to reflect an answer.
