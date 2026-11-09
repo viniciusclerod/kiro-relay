@@ -6,6 +6,8 @@
   "command.refreshModels.title": "Atualizar modelos",
   "command.manage.title": "Gerenciar",
   "command.togglePanel.title": "Alternar painel de status",
+  "command.toggleChatPanel.title": "Alternar painel de status do Chat",
+  "command.openPanelInEditor.title": "Abrir painel de status no editor",
   "view.statusPanel.name": "Status",
   "config.cli.path.description": "Caminho do executável do kiro-cli (usado na renovação do token, no login e no diagnóstico).",
   "config.auth.sources.description": "Fontes de credenciais, em ordem de prioridade. 'kiro-cli-db' = banco SQLite do kiro-cli; 'sso-cache' = ~/.aws/sso/cache/kiro-auth-token.json.",

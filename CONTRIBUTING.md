@@ -160,26 +160,31 @@ test/                   # node:test, runs without VS Code
 ## Releasing
 
 Releases are automatic (`.github/workflows/release.yml`). On every push to `main`, the version in
-`package.json` is published to each registry that has a token, independently:
+`package.json` is built, tested and packaged. The workflow creates the GitHub release and
+attaches the VSIX before independently attempting each enabled registry. It can also be
+started manually with `workflow_dispatch`.
 
-| Secret | Registry |
-|---|---|
-| `VSCE_PAT` | VS Code Marketplace (Azure DevOps token, scope *Marketplace › Manage*) |
-| `OVSX_PAT` | Open VSX (open-vsx.org access token; create the namespace once with `npx ovsx create-namespace viniciusclerod -p <token>`) |
+| Repository Variable | Secret | Registry |
+|---|---|---|
+| `VSCE_ENABLE=true` | `VSCE_PAT` | VS Code Marketplace (Azure DevOps token, scope *Marketplace > Manage*) |
+| `OVSX_ENABLE=true` | `OVSX_PAT` | Open VSX (access token for the publisher namespace) |
 
-- Without any token, nothing is built or published.
+- A registry is skipped unless its enable variable is exactly `true` and its token is set.
+  Build, packaging and GitHub release creation still run without marketplace tokens.
 - One registry failing does not stop the other; the job then fails and can be re-run.
 - Each registry skips a version it already has (`--skip-duplicate`), so adding the second token
-  later publishes the current version there too, and pushes that do not bump the version publish
-  nothing.
+  and enabling that registry later can publish the current version there too.
 - The `v<version>` tag and a GitHub release (with the `.vsix` and the matching `CHANGELOG.md`
-  section) are created once, after every configured registry succeeded.
+  section) are created once, before marketplace publishing. Re-running attaches a missing
+  VSIX but does not replace an existing release asset or update its notes.
+- `preview: true` in `package.json` marks the GitHub release as a prerelease.
 
 To release a new version:
 
 1. `npm version <x.y.z> --no-git-tag-version` (updates `package.json` and `package-lock.json`).
 2. Add a `## <x.y.z> — <date>` section to `CHANGELOG.md`.
-3. Merge to `main`.
+3. Run `npm ci`, `npm run typecheck`, `npm test`, `npm run build` and `npm run package`.
+4. Configure the repository variables and secrets for the desired registries, then merge to `main`.
 
 Global Azure DevOps PATs ("All accessible organizations") stop working on December 1, 2026; the
 long-term replacement is Microsoft Entra ID (`vsce publish --azure-credential`).

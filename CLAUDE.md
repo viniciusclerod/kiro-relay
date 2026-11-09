@@ -60,7 +60,7 @@ linguagem** (`vscode.lm.registerLanguageModelChatProvider`) no Chat do VS Code, 
 Textos ao dono continuam em português; o código e o produto, em inglês (ver Convenções).
 
 Estrutura relevante: `src/extension.ts` (comandos `kirorelay.diagnose`, `kirorelay.reloadCredentials`, `kirorelay.refreshModels`,
-`kirorelay.manage` (managementCommand do provedor), status bar, provedor de modelos), `src/auth/` (`credentials`, `kiroCliDb`,
+`kirorelay.manage` (menu de gerenciamento), status bar, provedor de modelos), `src/auth/` (`credentials`, `kiroCliDb`,
 `ssoCache`, `sqliteSnapshot`, `tokenProvider`, `diagnose`, `factory`, `paths`, `errors`, `redact`, `source`) e `src/models/catalog.ts`.
 Há `scripts/check-name.ts` (verifica nomes no Marketplace/Open VSX).
 
@@ -223,7 +223,7 @@ Tratar como observação, não como contrato; o backend muda sem aviso.
 
 Doc: https://code.visualstudio.com/api/extension-guides/ai/language-model-chat-provider · amostra:
 `microsoft/vscode-extension-samples/chat-model-provider-sample`. `engines.vscode: ^1.106.0` (barra lateral secundária).
-Contribuição `contributes.languageModelChatProviders` (`vendor`, `displayName`, `managementCommand`). Interface com
+Contribuição `contributes.languageModelChatProviders` (`vendor`, `displayName`). Interface com
 `provideLanguageModelChatInformation(options{silent}, token)`, `provideLanguageModelChatResponse(model, messages, options, progress, token)`,
 `provideTokenCount(model, text, token)`. Partes de resposta estáveis: `LanguageModelTextPart`, `LanguageModelToolCallPart`,
 `LanguageModelToolResultPart` (raciocínio/thinking exige APIs propostas; fora de escopo). Com `silent: true`, nunca abrir prompts.
@@ -238,9 +238,10 @@ Não está no `@types/vscode` (1.140 é a última): é API proposta, pode mudar.
 
 ## Ícone / logo (decisão do dono, 2026-10-21)
 
-- **A aba do provedor no seletor não aceita ícone de extensão**: o VS Code 1.142 escolhe o ícone da aba pelo `displayName`
-  comparando com uma lista fixa de marcas (Copilot, Claude/Anthropic, Gemini/Google, OpenAI/GPT, Grok/xAI, Kimi, Microsoft);
-  "Kiro" cai no ✨ genérico. `contributes.languageModelChatProviders` não tem campo de ícone.
+- **Ícone do provedor (revisto em 2026-11-09):** o schema oficial atual de `contributes.languageModelChatProviders` aceita
+  `icon` como ThemeIcon (`$(kirorelay-logo)`), caminho ou par light/dark. Declarado no manifesto; a exibição na aba ainda
+  precisa ser verificada no host. Versões antigas podem ignorar o campo e usar o ícone genérico. O clique da aba pertence ao
+  seletor de modelos; não pode ser substituído pelo Toggle do painel.
 - O que dá: `statusIcon` (ThemeIcon) em cada modelo, campo proposto que o runtime repassa sem checar proposta; aparece no botão do
   modelo no campo do Chat (e provavelmente nas linhas do seletor). Ícone próprio via `contributes.icons` + fonte `.woff`.
 - **Logo (decisão do dono, 2026-10-21: mitigar o risco):** o `kiro.svg` do app Kiro (AWS-IPL) foi **removido**. Ícone **original**
@@ -269,7 +270,8 @@ Não está no `@types/vscode` (1.140 é a última): é API proposta, pode mudar.
   `kiro-cli login [--license] [--identity-provider] [--region] [--use-device-flow]`; o terminal roda o kiro-cli **como processo**
   (`shellPath`/`shellArgs`, sem shell, sem injeção). O start URL do login atual vem de `start_url` do token (não é segredo; mostrado
   no hover, **não** no diagnóstico).
-- `managementCommand` está **obsoleto** no 1.142 (ainda funciona); migrar quando mexer no manifesto.
+- `managementCommand` está **obsoleto** no 1.142 e foi removido do manifesto em 2026-11-09. `configuration` é um schema, não um alias
+  para o comando; não declarar campos desnecessários porque o login é do CLI. `kirorelay.manage` continua na paleta e no menu do painel.
 
 ## Itens não verificados (não presumir)
 

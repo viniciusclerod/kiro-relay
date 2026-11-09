@@ -1,5 +1,42 @@
 # Changelog
 
+## 0.2.0 — 2026-11-09
+
+### Added
+
+- Support for the separate Agents window. Compatible VS Code versions enable Kiro Relay by
+  default when it is installed in the host's default profile.
+- **Open Status Panel in Editor** and **Toggle Chat Status Panel** commands, showing the same
+  account, login, credit and interaction details as the sidebar panel in a webview editor tab.
+- A Kiro Relay Toggle button in the Agents editor header. It opens or closes only the Kiro
+  status tab, leaving other editor tabs open.
+- Safe panel diagnostics recording the selected route, VS Code version and editor visibility
+  without account data or credentials.
+
+### Fixed
+
+- Toggle Status Panel now falls back to an editor tab when the sidebar focus command is
+  unavailable or does not reveal the view, and closes an already visible Kiro editor tab.
+- Added explicit icons for the status view and the model provider. Older VS Code versions
+  may still use a generic provider icon.
+
+### Changed
+
+- Removed the deprecated provider `managementCommand` contribution. **Manage** remains
+  available in the command palette and the status panel menu; sign-in still uses kiro-cli.
+- Updated the development packaging tool `@vscode/vsce` to 4.1.0 (Node.js 22 or newer).
+
+### Known Limitations
+
+- In Agents, keep **Changes** or another right-hand editor tab open so the Toggle button
+  remains available after closing the Kiro tab. Closing every tab removes the header;
+  the command palette can still reopen the status panel.
+- No button is contributed to `chat/input/status`: VS Code 1.145.2 renders it outside the
+  Agents input and fails to serialize its circular widget argument before invoking extension
+  commands. The editor-header button avoids this host issue.
+- Agents uses the host's kiro-cli credentials. F5 development in a Dev Container does not
+  automatically load the extension or share its login with the host's Agents window.
+
 ## 0.1.0 — 2026-10-24
 
 First preview release.

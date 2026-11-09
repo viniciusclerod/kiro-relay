@@ -18,7 +18,7 @@ import { KiroApiError, ModelCatalog, toChatModelInfo, type ChatModelInfo } from 
 import { resolveEffort } from './models/effort.ts';
 import { barColorsFor, type PanelData, type PanelLink, type PanelRow, type PanelSection } from './ui/panel.ts';
 import { renderTooltip } from './ui/tooltip.ts';
-import { PANEL_COMMANDS, renderPanelWebview } from './ui/webview.ts';
+import { PANEL_COMMANDS, panelToggleAction, renderPanelWebview } from './ui/webview.ts';
 
 /**
  * Model info sent to VS Code. `statusIcon` is proposed API (not in @types/vscode); VS Code 1.142 uses
@@ -327,37 +327,54 @@ export function activate(context: vscode.ExtensionContext): void {
   status.name = 'Kiro Relay';
   status.command = 'kirorelay.togglePanel';
   let panelView: vscode.WebviewView | undefined;
+  let editorPanel: vscode.WebviewPanel | undefined;
+  let editorPanelHtml = '';
   /** Last HTML sent: setting the same HTML again would reload the view and reset hover and scroll. */
   let panelHtml = '';
 
-  function renderView(): void {
-    if (!panelView?.visible) return;
-    const webview = panelView.webview;
+  function panelWebviewHtml(webview: vscode.Webview): string {
     const asset = (...p: string[]) => webview.asWebviewUri(vscode.Uri.joinPath(context.extensionUri, ...p)).toString();
-    const html = renderPanelWebview(panelData(), {
+    return renderPanelWebview(panelData(), {
       language: vscode.env.language,
       cspSource: webview.cspSource,
       logoFontUri: asset('media', 'kirorelay-icons.woff'),
       codiconsUri: asset('dist', 'codicons', 'codicon.css'),
     });
-    if (html !== panelHtml) {
-      panelHtml = html;
-      webview.html = html;
+  }
+
+  function renderView(): void {
+    if (panelView?.visible) {
+      const html = panelWebviewHtml(panelView.webview);
+      if (html !== panelHtml) {
+        panelHtml = html;
+        panelView.webview.html = html;
+      }
     }
+    if (editorPanel?.visible) {
+      const html = panelWebviewHtml(editorPanel.webview);
+      if (html !== editorPanelHtml) {
+        editorPanelHtml = html;
+        editorPanel.webview.html = html;
+      }
+    }
+  }
+
+  function configurePanelWebview(webview: vscode.Webview): void {
+    webview.options = {
+      enableScripts: false,
+      enableCommandUris: [...PANEL_COMMANDS],
+      localResourceRoots: [
+        vscode.Uri.joinPath(context.extensionUri, 'media'),
+        vscode.Uri.joinPath(context.extensionUri, 'dist', 'codicons'),
+      ],
+    };
   }
 
   const panelProvider = vscode.window.registerWebviewViewProvider('kirorelay.statusPanel', {
     resolveWebviewView(view) {
       panelView = view;
       panelHtml = '';
-      view.webview.options = {
-        enableScripts: false,
-        enableCommandUris: [...PANEL_COMMANDS],
-        localResourceRoots: [
-          vscode.Uri.joinPath(context.extensionUri, 'media'),
-          vscode.Uri.joinPath(context.extensionUri, 'dist', 'codicons'),
-        ],
-      };
+      configurePanelWebview(view.webview);
       const visibility = view.onDidChangeVisibility(() => {
         panelHtml = '';
         renderView();
@@ -369,12 +386,60 @@ export function activate(context: vscode.ExtensionContext): void {
       renderView();
     },
   });
-  const togglePanel = vscode.commands.registerCommand('kirorelay.togglePanel', async () => {
-    if (panelView?.visible) {
-      await vscode.commands.executeCommand('workbench.action.closeAuxiliaryBar');
-    } else {
-      await vscode.commands.executeCommand('kirorelay.statusPanel.focus');
+  async function toggleStatusPanel(preferEditor = false): Promise<void> {
+    const commands = preferEditor ? [] : await vscode.commands.getCommands();
+    const action = panelToggleAction({
+      sidebarVisible: panelView?.visible === true,
+      sidebarAvailable: commands.includes('kirorelay.statusPanel.focus'),
+      editorVisible: editorPanel?.visible === true,
+      preferEditor,
+    });
+    log(`status panel: ${action}; source=${preferEditor ? 'chat' : 'status'}, vscode=${vscode.version}`);
+    switch (action) {
+      case 'close-sidebar':
+        await vscode.commands.executeCommand('workbench.action.closeAuxiliaryBar');
+        break;
+      case 'open-sidebar':
+        await vscode.commands.executeCommand('kirorelay.statusPanel.focus');
+        if (!panelView?.visible) {
+          log('status panel: sidebar focus did not reveal a view; opening editor panel');
+          await vscode.commands.executeCommand('kirorelay.openPanelInEditor');
+        }
+        break;
+      case 'close-editor':
+        editorPanel?.dispose();
+        break;
+      case 'open-editor':
+        await vscode.commands.executeCommand('kirorelay.openPanelInEditor');
+        break;
     }
+  }
+  const togglePanel = vscode.commands.registerCommand('kirorelay.togglePanel', () => toggleStatusPanel());
+  const toggleChatPanel = vscode.commands.registerCommand('kirorelay.toggleChatPanel', () => toggleStatusPanel(true));
+  const openPanelInEditor = vscode.commands.registerCommand('kirorelay.openPanelInEditor', () => {
+    log(`status panel: editor command received; existing=${editorPanel !== undefined}`);
+    if (editorPanel) {
+      editorPanel.reveal();
+      renderView();
+      return;
+    }
+    const panel = vscode.window.createWebviewPanel('kirorelay.statusEditor', 'Kiro Relay', vscode.ViewColumn.Active, {});
+    editorPanel = panel;
+    editorPanelHtml = '';
+    configurePanelWebview(panel.webview);
+    log(`status panel: editor created; visible=${panel.visible}, active=${panel.active}`);
+    const visibility = panel.onDidChangeViewState(() => {
+      log(`status panel: editor state changed; visible=${panel.visible}, active=${panel.active}`);
+      editorPanelHtml = '';
+      renderView();
+    });
+    panel.onDidDispose(() => {
+      log('status panel: editor disposed');
+      visibility.dispose();
+      if (editorPanel === panel) editorPanel = undefined;
+      editorPanelHtml = '';
+    });
+    renderView();
   });
 
   /** What the status bar and the menu show, refreshed by refreshStatus(). */
@@ -847,6 +912,9 @@ export function activate(context: vscode.ExtensionContext): void {
     refreshUsageCmd,
     refreshPanelCmd,
     togglePanel,
+    toggleChatPanel,
+    openPanelInEditor,
+    { dispose: () => editorPanel?.dispose() },
     panelProvider,
     onConfig,
     onTheme,

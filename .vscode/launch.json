@@ -8,6 +8,22 @@
       "args": ["--extensionDevelopmentPath=${workspaceFolder}"],
       "outFiles": ["${workspaceFolder}/dist/**/*.js"],
       "preLaunchTask": "npm: build"
+    },
+    {
+      "name": "Attach to Agents Extension Host",
+      "type": "node",
+      "request": "attach",
+      "address": "${input:agentsDebugHost}",
+      "port": 9333,
+      "outFiles": ["${workspaceFolder}/dist/**/*.js"]
+    }
+  ],
+  "inputs": [
+    {
+      "id": "agentsDebugHost",
+      "type": "promptString",
+      "description": "Extension host inspector address reachable from this environment",
+      "default": "localhost"
     }
   ]
 }

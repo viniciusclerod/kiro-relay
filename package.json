@@ -2,7 +2,7 @@
   "name": "kiro-relay",
   "displayName": "%displayName%",
   "description": "%description%",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "publisher": "viniciusclerod",
   "license": "MIT",
   "preview": true,
@@ -18,6 +18,11 @@
   "engines": {
     "vscode": "^1.106.0",
     "node": ">=22.18"
+  },
+  "capabilities": {
+    "agentsWindow": {
+      "supported": true
+    }
   },
   "categories": [
     "AI",
@@ -52,7 +57,8 @@
         {
           "type": "webview",
           "id": "kirorelay.statusPanel",
-          "name": "%view.statusPanel.name%"
+          "name": "%view.statusPanel.name%",
+          "icon": "media/kiro-relay.svg"
         }
       ]
     },
@@ -60,6 +66,18 @@
       {
         "command": "kirorelay.togglePanel",
         "title": "%command.togglePanel.title%",
+        "category": "Kiro Relay",
+        "icon": "$(kirorelay-logo)"
+      },
+      {
+        "command": "kirorelay.toggleChatPanel",
+        "title": "%command.toggleChatPanel.title%",
+        "category": "Kiro Relay",
+        "icon": "$(kirorelay-logo)"
+      },
+      {
+        "command": "kirorelay.openPanelInEditor",
+        "title": "%command.openPanelInEditor.title%",
         "category": "Kiro Relay"
       },
       {
@@ -93,6 +111,21 @@
         "category": "Kiro Relay"
       }
     ],
+    "menus": {
+      "editor/title": [
+        {
+          "command": "kirorelay.toggleChatPanel",
+          "when": "isSessionsWindow",
+          "group": "navigation@20"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "kirorelay.toggleChatPanel",
+          "when": "isSessionsWindow"
+        }
+      ]
+    },
     "icons": {
       "kirorelay-logo": {
         "description": "%icon.logo.description%",
@@ -266,7 +299,7 @@
       {
         "vendor": "kirorelay",
         "displayName": "Kiro",
-        "managementCommand": "kirorelay.manage"
+        "icon": "$(kirorelay-logo)"
       }
     ]
   },
@@ -284,7 +317,7 @@
     "@types/node": "^22.10.0",
     "@types/vscode": "^1.104.0",
     "@vscode/codicons": "^0.0.46-24",
-    "@vscode/vsce": "^3.0.0",
+    "@vscode/vsce": "^4.1.0",
     "esbuild": "^0.25.0",
     "svg2ttf": "^6.1.0",
     "svgicons2svgfont": "^16.0.0",

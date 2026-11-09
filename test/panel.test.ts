@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { barColorsFor, escapeHtml, progressBar, renderPanel, type PanelData } from '../src/ui/panel.ts';
 import { renderTooltip } from '../src/ui/tooltip.ts';
-import { PANEL_COMMANDS, renderPanelWebview, type WebviewOptions } from '../src/ui/webview.ts';
+import { PANEL_COMMANDS, panelToggleAction, renderPanelWebview, type WebviewOptions } from '../src/ui/webview.ts';
 
 test('status view targets a valid container in the secondary side bar', () => {
   const manifest = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
@@ -12,9 +12,52 @@ test('status view targets a valid container in the secondary side bar', () => {
   const container = containers[0];
   assert.match(container.id, /^[a-z0-9_-]+$/i, 'VS Code rejects dots in view container IDs');
   assert.equal(container.title, 'Kiro Relay');
-  assert.ok(manifest.contributes.views[container.id].some(
+  const view = manifest.contributes.views[container.id].find(
     (view: { id: string; type: string }) => view.id === 'kirorelay.statusPanel' && view.type === 'webview',
-  ));
+  );
+  assert.ok(view);
+  assert.equal(view.icon, container.icon);
+  assert.ok(readFileSync(new URL(`../${view.icon}`, import.meta.url)).length > 0);
+});
+
+test('Agents editor title contributes the editor-only Toggle without the broken input status button', () => {
+  const manifest = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
+  const command = manifest.contributes.commands.find(
+    (command: { command: string }) => command.command === 'kirorelay.toggleChatPanel',
+  );
+  assert.ok(command);
+  assert.equal(command.icon, '$(kirorelay-logo)');
+  assert.ok(manifest.contributes.icons['kirorelay-logo']);
+  assert.deepEqual(manifest.contributes.menus['editor/title'], [{
+    command: command.command,
+    when: 'isSessionsWindow',
+    group: 'navigation@20',
+  }]);
+  assert.equal(manifest.contributes.menus['chat/input/status'], undefined);
+  assert.equal(command.title, '%command.toggleChatPanel.title%');
+  assert.deepEqual(manifest.contributes.menus.commandPalette, [{ command: command.command, when: 'isSessionsWindow' }]);
+  assert.equal(manifest.enabledApiProposals, undefined);
+});
+
+test('toggle opens or closes the editor panel when the sidebar focus command is missing', () => {
+  assert.equal(panelToggleAction({ sidebarVisible: false, sidebarAvailable: false, editorVisible: false }), 'open-editor');
+  assert.equal(panelToggleAction({ sidebarVisible: false, sidebarAvailable: false, editorVisible: true }), 'close-editor');
+});
+
+test('chat Toggle opens and closes the editor even when a sidebar view is available', () => {
+  for (const sidebarVisible of [false, true]) {
+    for (const sidebarAvailable of [false, true]) {
+      assert.equal(panelToggleAction({ sidebarVisible, sidebarAvailable, editorVisible: false, preferEditor: true }), 'open-editor');
+      assert.equal(panelToggleAction({ sidebarVisible, sidebarAvailable, editorVisible: true, preferEditor: true }), 'close-editor');
+    }
+  }
+});
+
+test('toggle preserves sidebar behavior when its focus command is registered', () => {
+  assert.equal(panelToggleAction({ sidebarVisible: false, sidebarAvailable: true, editorVisible: false }), 'open-sidebar');
+  assert.equal(panelToggleAction({ sidebarVisible: false, sidebarAvailable: true, editorVisible: true }), 'close-editor');
+  assert.equal(panelToggleAction({ sidebarVisible: true, sidebarAvailable: true, editorVisible: false }), 'close-sidebar');
+  assert.equal(panelToggleAction({ sidebarVisible: true, sidebarAvailable: false, editorVisible: false }), 'close-sidebar');
 });
 
 const DATA: PanelData = {

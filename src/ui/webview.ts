@@ -8,6 +8,19 @@ export const PANEL_COMMANDS = [
   'workbench.action.openSettings',
 ] as const;
 
+export function panelToggleAction(options: {
+  sidebarVisible: boolean;
+  sidebarAvailable: boolean;
+  editorVisible: boolean;
+  preferEditor?: boolean;
+}): 'close-sidebar' | 'open-sidebar' | 'close-editor' | 'open-editor' {
+  if (options.preferEditor) return options.editorVisible ? 'close-editor' : 'open-editor';
+  if (options.sidebarVisible) return 'close-sidebar';
+  if (options.editorVisible) return 'close-editor';
+  if (options.sidebarAvailable) return 'open-sidebar';
+  return 'open-editor';
+}
+
 export interface WebviewOptions {
   language: string;
   cspSource: string;

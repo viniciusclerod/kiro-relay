@@ -47,6 +47,37 @@ model picker, with streaming answers, Agent mode tools, images and thinking effo
 4. Click the Kiro Relay icon in the status bar to toggle the **Kiro Relay** view in the secondary
    side bar (next to Chat), with your credits and account details. Hover the icon for token and session expiry only.
 
+### Agents window
+
+Kiro Relay declares support for the separate Agents window. VS Code versions that recognize
+this declaration enable the extension by default when it is installed in the host's default
+profile. Sign in with `kiro-cli` on that host; a development extension running through F5 in
+a Dev Container is not automatically loaded in the Agents window.
+
+Use **Kiro Relay: Open Status Panel in Editor** to open the status content in a webview tab
+with the same account, credit and interaction details as the sidebar panel.
+
+**Kiro Relay: Toggle Chat Status Panel** always toggles the editor tab and is available in
+the Agents command palette. **Toggle Status Panel** prefers the standard sidebar view,
+falling back to the editor tab when the sidebar is unavailable.
+
+In Agents, the Kiro Relay icon appears in the right-hand editor header through the public
+`editor/title` menu. It uses the editor-only Toggle: click it to open the Kiro status tab
+and click again to close that tab. Other tabs are not closed. Keep **Changes** or another
+tab open so the header and its button remain available after closing the Kiro tab. Closing
+all right-hand tabs removes the header; use the command palette to reopen the panel then.
+
+The `chat/input/status` button is not contributed. In VS Code 1.145.2 it rendered below the
+Agents input and clicking it failed with `Converting circular structure to JSON`: the host
+forwarded a circular widget context through command RPC before the extension handler ran.
+The editor-header route avoids that broken chat-toolbar context.
+
+If the panel does not appear, run **Kiro Relay: Manage**, choose **Show log**, and check
+the `status panel:` entries for command execution, VS Code version and editor visibility.
+
+Declaring support does not force either panel to open. An explicit
+`extensions.supportAgentsWindow` override can still disable the extension there.
+
 ## Requirements
 
 - **VS Code 1.106 or newer.** VS Code 1.142 or newer is recommended: the thinking effort menu, the
@@ -80,8 +111,10 @@ model picker, with streaming answers, Agent mode tools, images and thinking effo
 
 | Command | What it does |
 |---|---|
-| `Kiro Relay: Manage` | Menu with the connection state and every action below; also the model picker's "Manage" action |
+| `Kiro Relay: Manage` | Menu with the connection state and every action below; also available from the status panel |
 | `Kiro Relay: Toggle Status Panel` | Opens or closes the Kiro Relay view in the secondary side bar (next to Chat); also available by clicking the status bar icon |
+| `Kiro Relay: Toggle Chat Status Panel` | Opens or closes only the Kiro status editor tab in Agents; also available from the right-hand editor header |
+| `Kiro Relay: Open Status Panel in Editor` | Opens the same status content in a webview editor tab using the public VS Code API |
 | `Kiro Relay: Sign In with kiro-cli` | Opens `kiro-cli login` with the `kirorelay.login.*` settings; offers installation if the executable is missing |
 | `Kiro Relay: Refresh Credit Usage` | Fetches your credit usage again (it also refreshes every 5 minutes and after answers) |
 | `Kiro Relay: Refresh Models` | Fetches the model list again (it is cached for one hour) |
@@ -129,8 +162,9 @@ window, `kirorelay.cli.path` appears in the **Remote** tab of the settings.
 
 ## Known limitations
 
-- The provider tab in the model picker shows a generic ✨ icon: VS Code only shows brand icons for
-  a fixed list of vendors.
+- The provider declares its Kiro Relay icon through the public languageModelChatProviders icon
+  field. Older VS Code versions that ignore this field can still show a generic provider icon.
+  The provider tab selects models; its click action cannot be replaced with the status Toggle.
 - The status bar icon toggles a webview in the secondary side bar (not a floating popup like Copilot's
   internal status widget). Its **Refresh** link reloads credentials, session and credits.
   The hover is a separate, plain-text summary of token and session expiry.

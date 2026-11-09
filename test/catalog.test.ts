@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import type { AccessToken } from '../src/auth/tokenProvider.ts';
 import {
   KiroApiError,
@@ -10,6 +11,21 @@ import {
   toChatModelInfo,
   type FetchFn,
 } from '../src/models/catalog.ts';
+
+test('provider keeps its Manage command without deprecated or unnecessary configuration fields', () => {
+  const manifest = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
+  const provider = manifest.contributes.languageModelChatProviders.find(
+    (provider: { vendor: string }) => provider.vendor === 'kirorelay',
+  );
+  assert.ok(provider);
+  assert.equal(provider.icon, '$(kirorelay-logo)');
+  assert.ok(manifest.contributes.icons['kirorelay-logo']);
+  assert.equal('managementCommand' in provider, false);
+  assert.equal('configuration' in provider, false);
+  assert.ok(manifest.contributes.commands.some(
+    (command: { command: string }) => command.command === 'kirorelay.manage',
+  ));
+});
 
 const ARN = 'arn:aws:codewhisperer:us-east-1:123456789012:profile/ABCDEF';
 
